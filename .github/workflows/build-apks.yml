@@ -1,0 +1,47 @@
+name: Build RideGo APKs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Rider APK
+        working-directory: rider
+        run: |
+          flutter create --platforms=android .
+          flutter pub get
+          flutter build apk --release
+
+      - name: Build Driver APK
+        working-directory: driver
+        run: |
+          flutter create --platforms=android .
+          flutter pub get
+          flutter build apk --release
+
+      - name: Upload Rider APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-rider-apk
+          path: rider/build/app/outputs/flutter-apk/*.apk
+
+      - name: Upload Driver APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-driver-apk
+          path: driver/build/app/outputs/flutter-apk/*.apk
