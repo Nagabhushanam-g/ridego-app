@@ -1,0 +1,31 @@
+workflows:
+  ridego-android:
+    name: RideGo Android APKs
+    max_build_duration: 120
+    instance_type: linux_x2
+    environment:
+      flutter: stable
+    scripts:
+      - name: Extract RideGo source
+        script: |
+          rm -rf ridego_final_packaging
+          unzip -q ridego_final_rider_driver_package.zip
+      - name: Generate Android projects
+        script: |
+          cd ridego_final_packaging/rider
+          flutter create --platforms=android .
+          cd ../driver
+          flutter create --platforms=android .
+      - name: Build Rider APK
+        script: |
+          cd ridego_final_packaging/rider
+          flutter pub get
+          flutter build apk --release
+      - name: Build Driver APK
+        script: |
+          cd ridego_final_packaging/driver
+          flutter pub get
+          flutter build apk --release
+    artifacts:
+      - ridego_final_packaging/rider/build/app/outputs/flutter-apk/*.apk
+      - ridego_final_packaging/driver/build/app/outputs/flutter-apk/*.apk
