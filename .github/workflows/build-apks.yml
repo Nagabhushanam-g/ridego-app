@@ -20,13 +20,81 @@ jobs:
           channel: stable
           cache: true
 
+      # =========================
+      # BUILD RIDER APK
+      # =========================
       - name: Build Rider APK
         working-directory: rider
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
           flutter create --platforms=android .
+
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+
+          # Add location and internet permissions
+          permissions = """    <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+          """
+
+          if "android.permission.INTERNET" not in text:
+              text = text.replace(
+                  "<application",
+                  permissions + "\n    <application",
+                  1
+              )
+
+          # Get Google Maps API key from GitHub Actions secret
+          maps_key = os.environ["GOOGLE_MAPS_API_KEY"]
+
+          # Add Google Maps API key inside the application element
+          meta_data = (
+              '\n        <meta-data '
+              'android:name="com.google.android.geo.API_KEY" '
+              'android:value="' + maps_key + '"/>'
+          )
+
+          if "com.google.android.geo.API_KEY" not in text:
+              app_start = text.find("<application")
+              app_end = text.find(">", app_start)
+
+              if app_start == -1 or app_end == -1:
+                  raise RuntimeError("Could not find <application> in AndroidManifest.xml")
+
+              text = (
+                  text[:app_end + 1]
+                  + meta_data
+                  + text[app_end + 1:]
+              )
+
+          manifest.write_text(text)
+          PY
+
+          echo "========================================"
+          echo "=== RIDER APPLICATION ID ==="
+          echo "========================================"
+          grep -R "applicationId" android/app || true
+
+          echo "========================================"
+          echo "=== RIDER SHA1 ==="
+          echo "========================================"
+          cd android
+          chmod +x gradlew
+          ./gradlew signingReport
+          cd ..
+
           flutter pub get
           flutter build apk --release
 
+      # =========================
+      # BUILD DRIVER APK
+      # =========================
       - name: Build Driver APK
         working-directory: driver
         run: |
@@ -34,12 +102,18 @@ jobs:
           flutter pub get
           flutter build apk --release
 
+      # =========================
+      # UPLOAD RIDER APK
+      # =========================
       - name: Upload Rider APK
         uses: actions/upload-artifact@v4
         with:
           name: ridego-rider-apk
           path: rider/build/app/outputs/flutter-apk/*.apk
 
+      # =========================
+      # UPLOAD DRIVER APK
+      # =========================
       - name: Upload Driver APK
         uses: actions/upload-artifact@v4
         with:
