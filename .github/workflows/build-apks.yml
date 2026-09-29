@@ -1,66 +1,47 @@
-      python3 - <<'PY'
-      import os
-      import xml.etree.ElementTree as ET
-      from pathlib import Path
+name: Build RideGo APKs
 
-      manifest = Path("android/app/src/main/AndroidManifest.xml")
-      text = manifest.read_text(encoding="utf-8")
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
 
-      maps_key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-      if not maps_key:
-          raise RuntimeError(
-              "GOOGLE_MAPS_API_KEY is empty. "
-              "Check GitHub Settings > Secrets and variables > Actions."
-          )
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # Add permissions before <application>
-      permissions = """    <uses-permission android:name="android.permission.INTERNET"/>
-          <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-          <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-      """
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
-      if "android.permission.INTERNET" not in text:
-          text = text.replace(
-              "<application",
-              permissions + "\n    <application",
-              1
-          )
+      - name: Build Rider APK
+        working-directory: rider
+        run: |
+          flutter create --platforms=android .
+          flutter pub get
+          flutter build apk --release
 
-      # Add Google Maps API key inside <application>
-      if "com.google.android.geo.API_KEY" not in text:
-          app_start = text.find("<application")
-          app_end = text.find(">", app_start)
+      - name: Build Driver APK
+        working-directory: driver
+        run: |
+          flutter create --platforms=android .
+          flutter pub get
+          flutter build apk --release
 
-          if app_start == -1 or app_end == -1:
-              raise RuntimeError(
-                  "Could not find <application> in AndroidManifest.xml"
-              )
+      - name: Upload Rider APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-rider-apk
+          path: rider/build/app/outputs/flutter-apk/*.apk
 
-          metadata = (
-              '\n        <meta-data '
-              'android:name="com.google.android.geo.API_KEY" '
-              f'android:value="{maps_key}"/>\n'
-          )
-
-          text = (
-              text[:app_end + 1]
-              + metadata
-              + text[app_end + 1:]
-          )
-
-      manifest.write_text(text, encoding="utf-8")
-
-      # IMPORTANT: validate the generated XML before Gradle runs
-      try:
-          ET.parse(manifest)
-          print("AndroidManifest.xml is valid XML.")
-      except ET.ParseError as e:
-          print("Generated AndroidManifest.xml:")
-          print(text)
-          raise RuntimeError(
-              f"AndroidManifest.xml is invalid XML: {e}"
-          )
-
-      print("AndroidManifest.xml configured successfully.")
-      PY
+      - name: Upload Driver APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-driver-apk
+          path: driver/build/app/outputs/flutter-apk/*.apk
