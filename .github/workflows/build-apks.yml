@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,12 +30,20 @@ jobs:
           flutter pub get
           flutter build apk --release
 
+      - name: Show Rider signing SHA-1
+        working-directory: rider/android
+        run: ./gradlew signingReport
+
       - name: Build Driver APK
         working-directory: driver
         run: |
           flutter create --platforms=android .
           flutter pub get
           flutter build apk --release
+
+      - name: Show Driver signing SHA-1
+        working-directory: driver/android
+        run: ./gradlew signingReport
 
       - name: Upload Rider APK
         uses: actions/upload-artifact@v4
@@ -45,3 +56,17 @@ jobs:
         with:
           name: ridego-driver-apk
           path: driver/build/app/outputs/flutter-apk/*.apk
+
+      - name: Save Android projects to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add rider/android driver/android
+
+          if git diff --cached --quiet; then
+            echo "No Android project changes to commit."
+          else
+            git commit -m "Add generated Android projects"
+            git push
+          fi
