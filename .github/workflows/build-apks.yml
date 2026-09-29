@@ -1,48 +1,66 @@
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
+      python3 - <<'PY'
+      import os
+      import xml.etree.ElementTree as ET
+      from pathlib import Path
 
-          manifest = Path("android/app/src/main/AndroidManifest.xml")
-          text = manifest.read_text()
+      manifest = Path("android/app/src/main/AndroidManifest.xml")
+      text = manifest.read_text(encoding="utf-8")
 
-          maps_key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
+      maps_key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
 
-          if not maps_key:
+      if not maps_key:
+          raise RuntimeError(
+              "GOOGLE_MAPS_API_KEY is empty. "
+              "Check GitHub Settings > Secrets and variables > Actions."
+          )
+
+      # Add permissions before <application>
+      permissions = """    <uses-permission android:name="android.permission.INTERNET"/>
+          <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+          <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+      """
+
+      if "android.permission.INTERNET" not in text:
+          text = text.replace(
+              "<application",
+              permissions + "\n    <application",
+              1
+          )
+
+      # Add Google Maps API key inside <application>
+      if "com.google.android.geo.API_KEY" not in text:
+          app_start = text.find("<application")
+          app_end = text.find(">", app_start)
+
+          if app_start == -1 or app_end == -1:
               raise RuntimeError(
-                  "GOOGLE_MAPS_API_KEY is empty. "
-                  "Check GitHub Settings > Secrets and variables > Actions."
+                  "Could not find <application> in AndroidManifest.xml"
               )
 
-          # Add permissions immediately before <application>
-          permissions = """    <uses-permission android:name="android.permission.INTERNET"/>
-              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-          """
-
-          if "android.permission.ACCESS_FINE_LOCATION" not in text:
-              text = text.replace(
-                  "    <application",
-                  permissions + "\n    <application",
-                  1
-              )
-
-          # Add Google Maps metadata immediately before the first activity.
-          # This keeps it inside <application> without trying to rewrite
-          # the XML structure.
           metadata = (
-              '        <meta-data '
+              '\n        <meta-data '
               'android:name="com.google.android.geo.API_KEY" '
               f'android:value="{maps_key}"/>\n'
           )
 
-          if "com.google.android.geo.API_KEY" not in text:
-              text = text.replace(
-                  "        <activity",
-                  metadata + "        <activity",
-                  1
-              )
+          text = (
+              text[:app_end + 1]
+              + metadata
+              + text[app_end + 1:]
+          )
 
-          manifest.write_text(text)
+      manifest.write_text(text, encoding="utf-8")
 
-          print("AndroidManifest.xml configured.")
-          PY
+      # IMPORTANT: validate the generated XML before Gradle runs
+      try:
+          ET.parse(manifest)
+          print("AndroidManifest.xml is valid XML.")
+      except ET.ParseError as e:
+          print("Generated AndroidManifest.xml:")
+          print(text)
+          raise RuntimeError(
+              f"AndroidManifest.xml is invalid XML: {e}"
+          )
+
+      print("AndroidManifest.xml configured successfully.")
+      PY
