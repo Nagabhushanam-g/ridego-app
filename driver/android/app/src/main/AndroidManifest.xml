@@ -1,9 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="ridego_driver"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
-        <activity
+    android:label="ridego_rider"
+    android:name="${applicationName}"
+    android:icon="@mipmap/ic_launcher">
+
+    <meta-data
+        android:name="com.google.android.geo.API_KEY"
+        android:value="AIzaSyAbwm2y9Cuknl9Qv9VnH_3cH0XT9q5d_-Q"/>
+
+    <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
