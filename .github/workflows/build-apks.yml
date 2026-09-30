@@ -115,6 +115,11 @@ jobs:
 
       - name: Verify Rider release signing
         working-directory: rider/android
+        env:
+          RIDEGO_KEYSTORE_PATH: ${{ github.workspace }}/rider/android/app/rider-release.jks
+          RIDEGO_KEYSTORE_PASSWORD: ${{ secrets.RIDER_KEYSTORE_PASSWORD }}
+          RIDEGO_KEY_ALIAS: ${{ secrets.RIDER_KEY_ALIAS }}
+          RIDEGO_KEY_PASSWORD: ${{ secrets.RIDER_KEY_PASSWORD }}
         run: ./gradlew signingReport
 
       # -------------------- DRIVER --------------------
@@ -209,6 +214,11 @@ jobs:
 
       - name: Verify Driver release signing
         working-directory: driver/android
+        env:
+          RIDEGO_KEYSTORE_PATH: ${{ github.workspace }}/driver/android/app/driver-release.jks
+          RIDEGO_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
+          RIDEGO_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
+          RIDEGO_KEY_PASSWORD: ${{ secrets.DRIVER_KEY_PASSWORD }}
         run: ./gradlew signingReport
 
       # -------------------- ARTIFACTS --------------------
