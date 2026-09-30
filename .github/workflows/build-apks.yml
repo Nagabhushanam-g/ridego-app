@@ -1,3 +1,4 @@
+# Rebuild after Google Cloud Maps Android SHA-1 restrictions were updated.
 name: Build RideGo APKs
 
 on:
