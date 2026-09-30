@@ -2,12 +2,15 @@ name: Build RideGo APKs
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -25,9 +28,45 @@ jobs:
 
       - name: Build Rider APK
         working-directory: rider
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
+          test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
           flutter create --platforms=android .
           flutter pub get
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          text = path.read_text()
+
+          text = re.sub(
+              r'\s*<meta-data\s+android:name="com\.google\.android\.geo\.API_KEY"\s+android:value="[^"]*"\s*/>',
+              '',
+              text,
+          )
+
+          if 'android.permission.ACCESS_FINE_LOCATION' not in text:
+              text = text.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>',
+                  1,
+              )
+
+          text = text.replace(
+              'android:icon="@mipmap/ic_launcher">',
+              'android:icon="@mipmap/ic_launcher">\n'
+              '        <meta-data\n'
+              '            android:name="com.google.android.geo.API_KEY"\n'
+              '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
+              1,
+          )
+          path.write_text(text)
+          PY
           flutter build apk --release
 
       - name: Show Rider signing SHA-1
@@ -36,9 +75,36 @@ jobs:
 
       - name: Build Driver APK
         working-directory: driver
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
+          test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
           flutter create --platforms=android .
           flutter pub get
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          text = path.read_text()
+
+          text = re.sub(
+              r'\s*<meta-data\s+android:name="com\.google\.android\.geo\.API_KEY"\s+android:value="[^"]*"\s*/>',
+              '',
+              text,
+          )
+
+          text = text.replace(
+              'android:icon="@mipmap/ic_launcher">',
+              'android:icon="@mipmap/ic_launcher">\n'
+              '        <meta-data\n'
+              '            android:name="com.google.android.geo.API_KEY"\n'
+              '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
+              1,
+          )
+          path.write_text(text)
+          PY
           flutter build apk --release
 
       - name: Show Driver signing SHA-1
@@ -56,17 +122,3 @@ jobs:
         with:
           name: ridego-driver-apk
           path: driver/build/app/outputs/flutter-apk/*.apk
-
-      - name: Save Android projects to repository
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add rider/android driver/android
-
-          if git diff --cached --quiet; then
-            echo "No Android project changes to commit."
-          else
-            git commit -m "Add generated Android projects"
-            git push
-          fi
