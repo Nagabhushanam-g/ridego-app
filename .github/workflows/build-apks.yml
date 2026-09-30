@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -25,9 +25,49 @@ jobs:
 
       - name: Build Rider APK
         working-directory: rider
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
+          test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
           flutter create --platforms=android .
           flutter pub get
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          text = path.read_text()
+
+          # Remove any previously generated Maps key entry, then inject the
+          # current GitHub Actions secret only into the runner workspace.
+          text = re.sub(
+              r'\s*<meta-data\s+android:name="com\.google\.android\.geo\.API_KEY"\s+android:value="[^"]*"\s*/>',
+              '',
+              text,
+          )
+          text = text.replace(
+              '<application',
+              '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n'
+              '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>\n\n'
+              '    <application',
+              1,
+          )
+          text = text.replace(
+              '<application',
+              '<application',
+              1,
+          )
+          text = text.replace(
+              'android:icon="@mipmap/ic_launcher">',
+              'android:icon="@mipmap/ic_launcher">\n'
+              '        <meta-data\n'
+              '            android:name="com.google.android.geo.API_KEY"\n'
+              '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
+              1,
+          )
+          path.write_text(text)
+          PY
           flutter build apk --release
 
       - name: Show Rider signing SHA-1
@@ -56,17 +96,3 @@ jobs:
         with:
           name: ridego-driver-apk
           path: driver/build/app/outputs/flutter-apk/*.apk
-
-      - name: Save Android projects to repository
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add rider/android driver/android
-
-          if git diff --cached --quiet; then
-            echo "No Android project changes to commit."
-          else
-            git commit -m "Add generated Android projects"
-            git push
-          fi
