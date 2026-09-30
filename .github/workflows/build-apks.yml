@@ -1,11 +1,7 @@
-# Rebuild after Google Cloud Maps Android SHA-1 restrictions were updated.
 name: Build RideGo APKs
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
@@ -27,22 +23,40 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Build Rider APK
+      # -------------------- RIDER --------------------
+      - name: Build Rider APK with permanent signing
         working-directory: rider
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          RIDER_KEYSTORE_BASE64: ${{ secrets.RIDER_KEYSTORE_BASE64 }}
+          RIDER_KEYSTORE_PASSWORD: ${{ secrets.RIDER_KEYSTORE_PASSWORD }}
+          RIDER_KEY_ALIAS: ${{ secrets.RIDER_KEY_ALIAS }}
+          RIDER_KEY_PASSWORD: ${{ secrets.RIDER_KEY_PASSWORD }}
+          RIDEGO_KEYSTORE_PATH: ${{ github.workspace }}/rider/android/app/rider-release.jks
+          RIDEGO_KEYSTORE_PASSWORD: ${{ secrets.RIDER_KEYSTORE_PASSWORD }}
+          RIDEGO_KEY_ALIAS: ${{ secrets.RIDER_KEY_ALIAS }}
+          RIDEGO_KEY_PASSWORD: ${{ secrets.RIDER_KEY_PASSWORD }}
         run: |
           set -e
           test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
+          test -n "$RIDER_KEYSTORE_BASE64" || { echo "RIDER_KEYSTORE_BASE64 repository secret is not configured."; exit 1; }
+          test -n "$RIDER_KEYSTORE_PASSWORD" || { echo "RIDER_KEYSTORE_PASSWORD repository secret is not configured."; exit 1; }
+          test -n "$RIDER_KEY_ALIAS" || { echo "RIDER_KEY_ALIAS repository secret is not configured."; exit 1; }
+          test -n "$RIDER_KEY_PASSWORD" || { echo "RIDER_KEY_PASSWORD repository secret is not configured."; exit 1; }
+
           flutter create --platforms=android .
           flutter pub get
+
+          printf '%s' "$RIDER_KEYSTORE_BASE64" | base64 --decode > android/app/rider-release.jks
+          test -s android/app/rider-release.jks
+
           python3 - <<'PY'
           from pathlib import Path
           import os
           import re
 
-          path = Path("android/app/src/main/AndroidManifest.xml")
-          text = path.read_text()
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
 
           text = re.sub(
               r'\s*<meta-data\s+android:name="com\.google\.android\.geo\.API_KEY"\s+android:value="[^"]*"\s*/>',
@@ -72,40 +86,71 @@ jobs:
               '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
               1,
           )
-          path.write_text(text)
+          manifest.write_text(text)
+
+          gradle = Path("android/app/build.gradle.kts")
+          g = gradle.read_text()
+
+          signing_block = '''android {\n    signingConfigs {\n        create("release") {\n            storeFile = file(System.getenv("RIDEGO_KEYSTORE_PATH"))\n            storePassword = System.getenv("RIDEGO_KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("RIDEGO_KEY_ALIAS")\n            keyPassword = System.getenv("RIDEGO_KEY_PASSWORD")\n        }\n    }\n'''
+          g = g.replace('android {\n', signing_block, 1)
+          g = g.replace(
+              'signingConfig = signingConfigs.getByName("debug")',
+              'signingConfig = signingConfigs.getByName("release")',
+              1,
+          )
+          gradle.write_text(g)
           PY
 
-          echo "--- Rider Maps configuration check ---"
+          echo "--- Rider configuration check ---"
           grep -q 'com.google.android.geo.API_KEY' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.ACCESS_COARSE_LOCATION' android/app/src/main/AndroidManifest.xml
-          grep -q 'com.example.ridego_rider' android/app/src/main/AndroidManifest.xml || true
+          grep -q 'signingConfigs.getByName("release")' android/app/build.gradle.kts
           echo "Google Maps metadata: PRESENT"
           echo "Location permissions: PRESENT"
+          echo "Permanent Rider signing: CONFIGURED"
           echo "API key value is not printed for security."
 
           flutter build apk --release
 
-      - name: Show Rider signing SHA-1
+      - name: Verify Rider release signing
         working-directory: rider/android
         run: ./gradlew signingReport
 
-      - name: Build Driver APK
+      # -------------------- DRIVER --------------------
+      - name: Build Driver APK with permanent signing
         working-directory: driver
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          DRIVER_KEYSTORE_BASE64: ${{ secrets.DRIVER_KEYSTORE_BASE64 }}
+          DRIVER_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
+          DRIVER_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
+          DRIVER_KEY_PASSWORD: ${{ secrets.DRIVER_KEY_PASSWORD }}
+          RIDEGO_KEYSTORE_PATH: ${{ github.workspace }}/driver/android/app/driver-release.jks
+          RIDEGO_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
+          RIDEGO_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
+          RIDEGO_KEY_PASSWORD: ${{ secrets.DRIVER_KEY_PASSWORD }}
         run: |
           set -e
           test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
+          test -n "$DRIVER_KEYSTORE_BASE64" || { echo "DRIVER_KEYSTORE_BASE64 repository secret is not configured."; exit 1; }
+          test -n "$DRIVER_KEYSTORE_PASSWORD" || { echo "DRIVER_KEYSTORE_PASSWORD repository secret is not configured."; exit 1; }
+          test -n "$DRIVER_KEY_ALIAS" || { echo "DRIVER_KEY_ALIAS repository secret is not configured."; exit 1; }
+          test -n "$DRIVER_KEY_PASSWORD" || { echo "DRIVER_KEY_PASSWORD repository secret is not configured."; exit 1; }
+
           flutter create --platforms=android .
           flutter pub get
+
+          printf '%s' "$DRIVER_KEYSTORE_BASE64" | base64 --decode > android/app/driver-release.jks
+          test -s android/app/driver-release.jks
+
           python3 - <<'PY'
           from pathlib import Path
           import os
           import re
 
-          path = Path("android/app/src/main/AndroidManifest.xml")
-          text = path.read_text()
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
 
           text = re.sub(
               r'\s*<meta-data\s+android:name="com\.google\.android\.geo\.API_KEY"\s+android:value="[^"]*"\s*/>',
@@ -135,23 +180,38 @@ jobs:
               '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
               1,
           )
-          path.write_text(text)
+          manifest.write_text(text)
+
+          gradle = Path("android/app/build.gradle.kts")
+          g = gradle.read_text()
+
+          signing_block = '''android {\n    signingConfigs {\n        create("release") {\n            storeFile = file(System.getenv("RIDEGO_KEYSTORE_PATH"))\n            storePassword = System.getenv("RIDEGO_KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("RIDEGO_KEY_ALIAS")\n            keyPassword = System.getenv("RIDEGO_KEY_PASSWORD")\n        }\n    }\n'''
+          g = g.replace('android {\n', signing_block, 1)
+          g = g.replace(
+              'signingConfig = signingConfigs.getByName("debug")',
+              'signingConfig = signingConfigs.getByName("release")',
+              1,
+          )
+          gradle.write_text(g)
           PY
 
-          echo "--- Driver Maps configuration check ---"
+          echo "--- Driver configuration check ---"
           grep -q 'com.google.android.geo.API_KEY' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.ACCESS_COARSE_LOCATION' android/app/src/main/AndroidManifest.xml
+          grep -q 'signingConfigs.getByName("release")' android/app/build.gradle.kts
           echo "Google Maps metadata: PRESENT"
           echo "Location permissions: PRESENT"
+          echo "Permanent Driver signing: CONFIGURED"
           echo "API key value is not printed for security."
 
           flutter build apk --release
 
-      - name: Show Driver signing SHA-1
+      - name: Verify Driver release signing
         working-directory: driver/android
         run: ./gradlew signingReport
 
+      # -------------------- ARTIFACTS --------------------
       - name: Upload Rider APK
         uses: actions/upload-artifact@v4
         with:
