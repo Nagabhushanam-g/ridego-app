@@ -152,10 +152,11 @@ jobs:
         run: ./gradlew signingReport
 
       # -------------------- DRIVER --------------------
-      - name: Build Driver APK with permanent signing
+      - name: Build Driver APK with permanent signing and Firebase
         working-directory: driver
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          FIREBASE_DRIVER_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_DRIVER_GOOGLE_SERVICES_JSON }}
           DRIVER_KEYSTORE_BASE64: ${{ secrets.DRIVER_KEYSTORE_BASE64 }}
           DRIVER_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
           DRIVER_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
@@ -167,6 +168,7 @@ jobs:
         run: |
           set -e
           test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
+          test -n "$FIREBASE_DRIVER_GOOGLE_SERVICES_JSON" || { echo "FIREBASE_DRIVER_GOOGLE_SERVICES_JSON repository secret is not configured."; exit 1; }
           test -n "$DRIVER_KEYSTORE_BASE64" || { echo "DRIVER_KEYSTORE_BASE64 repository secret is not configured."; exit 1; }
           test -n "$DRIVER_KEYSTORE_PASSWORD" || { echo "DRIVER_KEYSTORE_PASSWORD repository secret is not configured."; exit 1; }
           test -n "$DRIVER_KEY_ALIAS" || { echo "DRIVER_KEY_ALIAS repository secret is not configured."; exit 1; }
@@ -175,6 +177,9 @@ jobs:
           flutter create --platforms=android .
           flutter pub get
 
+          printf '%s' "$FIREBASE_DRIVER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          test -s android/app/google-services.json
+
           printf '%s' "$DRIVER_KEYSTORE_BASE64" | base64 --decode > android/app/driver-release.jks
           test -s android/app/driver-release.jks
 
@@ -182,6 +187,17 @@ jobs:
           from pathlib import Path
           import os
           import re
+
+          settings = Path("android/settings.gradle.kts")
+          s = settings.read_text()
+          if 'id("com.google.gms.google-services")' not in s:
+              s = s.replace(
+                  '    id("org.jetbrains.kotlin.android") version "2.4.0" apply false\n',
+                  '    id("org.jetbrains.kotlin.android") version "2.4.0" apply false\n'
+                  '    id("com.google.gms.google-services") version "4.5.0" apply false\n',
+                  1,
+              )
+          settings.write_text(s)
 
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           text = manifest.read_text()
@@ -219,6 +235,14 @@ jobs:
           gradle = Path("android/app/build.gradle.kts")
           g = gradle.read_text()
 
+          if 'id("com.google.gms.google-services")' not in g:
+              g = g.replace(
+                  '    id("com.android.application")\n',
+                  '    id("com.android.application")\n'
+                  '    id("com.google.gms.google-services")\n',
+                  1,
+              )
+
           signing_block = '''android {\n    signingConfigs {\n        create("release") {\n            storeFile = file(System.getenv("RIDEGO_KEYSTORE_PATH"))\n            storePassword = System.getenv("RIDEGO_KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("RIDEGO_KEY_ALIAS")\n            keyPassword = System.getenv("RIDEGO_KEY_PASSWORD")\n        }\n    }\n'''
           g = g.replace('android {\n', signing_block, 1)
           g = g.replace(
@@ -234,8 +258,13 @@ jobs:
           grep -q 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.ACCESS_COARSE_LOCATION' android/app/src/main/AndroidManifest.xml
           grep -q 'signingConfigs.getByName("release")' android/app/build.gradle.kts
+          grep -q 'id("com.google.gms.google-services")' android/settings.gradle.kts
+          grep -q 'id("com.google.gms.google-services")' android/app/build.gradle.kts
+          test -s android/app/google-services.json
           echo "Google Maps metadata: PRESENT"
           echo "Location permissions: PRESENT"
+          echo "Firebase google-services.json: PRESENT"
+          echo "Firebase Google Services plugin: CONFIGURED"
           echo "Permanent Driver signing: CONFIGURED"
           echo "API key value is not printed for security."
 
