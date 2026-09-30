@@ -31,6 +31,7 @@ jobs:
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
+          set -e
           test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
           flutter create --platforms=android .
           flutter pub get
@@ -52,14 +53,19 @@ jobs:
               text = text.replace(
                   '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
                   '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n'
-                  '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n'
-                  '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>',
+                  '    <uses-permission android:name="android.permission.INTERNET" />\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
                   1,
               )
 
+          marker = 'android:icon="@mipmap/ic_launcher">'
+          if marker not in text:
+              raise SystemExit("Could not find Android application element in Rider manifest.")
+
           text = text.replace(
-              'android:icon="@mipmap/ic_launcher">',
-              'android:icon="@mipmap/ic_launcher">\n'
+              marker,
+              marker + '\n'
               '        <meta-data\n'
               '            android:name="com.google.android.geo.API_KEY"\n'
               '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
@@ -67,6 +73,16 @@ jobs:
           )
           path.write_text(text)
           PY
+
+          echo "--- Rider Maps configuration check ---"
+          grep -q 'com.google.android.geo.API_KEY' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_COARSE_LOCATION' android/app/src/main/AndroidManifest.xml
+          grep -q 'com.example.ridego_rider' android/app/src/main/AndroidManifest.xml || true
+          echo "Google Maps metadata: PRESENT"
+          echo "Location permissions: PRESENT"
+          echo "API key value is not printed for security."
+
           flutter build apk --release
 
       - name: Show Rider signing SHA-1
@@ -78,6 +94,7 @@ jobs:
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
+          set -e
           test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
           flutter create --platforms=android .
           flutter pub get
@@ -95,9 +112,23 @@ jobs:
               text,
           )
 
+          if 'android.permission.ACCESS_FINE_LOCATION' not in text:
+              text = text.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n'
+                  '    <uses-permission android:name="android.permission.INTERNET" />\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
+                  1,
+              )
+
+          marker = 'android:icon="@mipmap/ic_launcher">'
+          if marker not in text:
+              raise SystemExit("Could not find Android application element in Driver manifest.")
+
           text = text.replace(
-              'android:icon="@mipmap/ic_launcher">',
-              'android:icon="@mipmap/ic_launcher">\n'
+              marker,
+              marker + '\n'
               '        <meta-data\n'
               '            android:name="com.google.android.geo.API_KEY"\n'
               '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
@@ -105,6 +136,15 @@ jobs:
           )
           path.write_text(text)
           PY
+
+          echo "--- Driver Maps configuration check ---"
+          grep -q 'com.google.android.geo.API_KEY' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_COARSE_LOCATION' android/app/src/main/AndroidManifest.xml
+          echo "Google Maps metadata: PRESENT"
+          echo "Location permissions: PRESENT"
+          echo "API key value is not printed for security."
+
           flutter build apk --release
 
       - name: Show Driver signing SHA-1
