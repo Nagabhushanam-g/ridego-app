@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-void main() => runApp(const RideGoRider());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const RideGoRider());
+}
 
 class RideGoRider extends StatelessWidget {
   const RideGoRider({super.key});
