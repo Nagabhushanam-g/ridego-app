@@ -8,6 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:http/http.dart' as http;
 
 const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+const String androidCertSha1 = String.fromEnvironment('GOOGLE_MAPS_ANDROID_CERT');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -154,6 +155,10 @@ class _RiderHomeState extends State<RiderHome> {
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': googleMapsApiKey,
+          if (androidCertSha1.isNotEmpty)
+            'X-Android-Package': 'com.example.ridego_rider',
+          if (androidCertSha1.isNotEmpty)
+            'X-Android-Cert': androidCertSha1,
         },
         body: jsonEncode(body),
       );
@@ -220,6 +225,10 @@ class _RiderHomeState extends State<RiderHome> {
         headers: {
           'X-Goog-Api-Key': googleMapsApiKey,
           'X-Goog-FieldMask': 'location,formattedAddress,displayName',
+          if (androidCertSha1.isNotEmpty)
+            'X-Android-Package': 'com.example.ridego_rider',
+          if (androidCertSha1.isNotEmpty)
+            'X-Android-Cert': androidCertSha1,
         },
       );
 
