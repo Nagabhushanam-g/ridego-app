@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth.dart';
+import 'history.dart';
 
 const String rideGoFirestoreDatabaseId = 'firestore-db-2';
 
@@ -235,7 +236,13 @@ class _DriverHomeState extends State<DriverHome> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    const CircleAvatar(child: Icon(Icons.person)),
+                    IconButton.filledTonal(
+                      tooltip: 'Trip history',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const DriverHistoryScreen()),
+                      ),
+                      icon: const Icon(Icons.person),
+                    ),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
