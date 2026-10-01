@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth.dart';
+import 'history.dart';
 import 'package:http/http.dart' as http;
 
 const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
@@ -447,7 +448,13 @@ class _RiderHomeState extends State<RiderHome> {
                   children: [
                     Row(
                       children: [
-                        const CircleAvatar(child: Icon(Icons.person)),
+                        IconButton.filledTonal(
+                          tooltip: 'Ride history',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const RiderHistoryScreen()),
+                          ),
+                          icon: const Icon(Icons.person),
+                        ),
                         const SizedBox(width: 10),
                         const Expanded(
                           child: Text(
