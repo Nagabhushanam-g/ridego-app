@@ -12,6 +12,12 @@ import 'package:http/http.dart' as http;
 
 const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 const String androidCertSha1 = String.fromEnvironment('GOOGLE_MAPS_ANDROID_CERT');
+const String rideGoFirestoreDatabaseId = 'firestore-db-2';
+
+FirebaseFirestore get rideGoFirestore => rideGoFirestoreFor(
+      app: Firebase.app(),
+      databaseId: rideGoFirestoreDatabaseId,
+    );
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -353,7 +359,7 @@ class _RiderHomeState extends State<RiderHome> {
       await ensureSignedIn();
       await rideSubscription?.cancel();
 
-      final ride = await FirebaseFirestore.instance.collection('rideRequests').add({
+      final ride = await rideGoFirestore.collection('rideRequests').add({
         'riderId': riderUid,
         'status': 'requested',
         'vehicle': vehicle,
@@ -378,7 +384,7 @@ class _RiderHomeState extends State<RiderHome> {
         status = 'SEARCHING_DRIVER';
       });
 
-      rideSubscription = FirebaseFirestore.instance
+      rideSubscription = rideGoFirestore
           .collection('rideRequests')
           .doc(ride.id)
           .snapshots()
