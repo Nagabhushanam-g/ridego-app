@@ -1,0 +1,59 @@
+name: Deploy RideGo Cloud Functions
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package.json
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Prepare Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_RIDER_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_RIDER_GOOGLE_SERVICES_JSON }}
+        run: |
+          set -e
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || { echo "FIREBASE_SERVICE_ACCOUNT_JSON repository secret is not configured."; exit 1; }
+          test -n "$FIREBASE_RIDER_GOOGLE_SERVICES_JSON" || { echo "FIREBASE_RIDER_GOOGLE_SERVICES_JSON repository secret is not configured."; exit 1; }
+
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          test -s "$RUNNER_TEMP/firebase-service-account.json"
+
+          PROJECT_ID=$(python3 - <<'PY'
+          import json, os
+          data = json.loads(os.environ["FIREBASE_RIDER_GOOGLE_SERVICES_JSON"])
+          print(data["project_info"]["project_id"])
+          PY
+          )
+          test -n "$PROJECT_ID"
+          echo "FIREBASE_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Install function dependencies
+        working-directory: functions
+        run: npm install
+
+      - name: Deploy RideGo Cloud Functions
+        run: firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive
+
+      - name: Deployment summary
+        run: |
+          echo "RideGo Cloud Functions deployment completed."
+          echo "Firebase project: $FIREBASE_PROJECT_ID"
