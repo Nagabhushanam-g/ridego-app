@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 
 const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
@@ -56,6 +58,9 @@ class _RiderHomeState extends State<RiderHome> {
       TextEditingController();
 
   List<_PlaceSuggestion> suggestions = [];
+  String? riderUid;
+  String? rideId;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
 
   @override
   void initState() {
@@ -65,6 +70,7 @@ class _RiderHomeState extends State<RiderHome> {
 
   @override
   void dispose() {
+    rideSubscription?.cancel();
     destinationSearchController.dispose();
     super.dispose();
   }
@@ -329,12 +335,70 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
-  void book() {
-    if (destination == null) return;
-    setState(() => status = 'SEARCHING_DRIVER');
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => status = 'DRIVER_ASSIGNED');
-    });
+  Future<void> ensureSignedIn() async {
+    if (FirebaseAuth.instance.currentUser != null) {
+      riderUid = FirebaseAuth.instance.currentUser!.uid;
+      return;
+    }
+    final credential = await FirebaseAuth.instance.signInAnonymously();
+    riderUid = credential.user!.uid;
+  }
+
+  Future<void> book() async {
+    if (destination == null || fare <= 0) return;
+
+    try {
+      setState(() => status = 'REQUESTING_RIDE');
+      await ensureSignedIn();
+      await rideSubscription?.cancel();
+
+      final ride = await FirebaseFirestore.instance.collection('rideRequests').add({
+        'riderId': riderUid,
+        'status': 'requested',
+        'vehicle': vehicle,
+        'fare': fare,
+        'distanceKm': double.parse(distanceKm.toStringAsFixed(2)),
+        'pickup': {
+          'latitude': pickup.latitude,
+          'longitude': pickup.longitude,
+        },
+        'destination': {
+          'latitude': destination!.latitude,
+          'longitude': destination!.longitude,
+        },
+        'destinationAddress': destinationAddress,
+        'createdAt': FieldValue.serverTimestamp(),
+        'driverId': null,
+      });
+
+      if (!mounted) return;
+      setState(() {
+        rideId = ride.id;
+        status = 'SEARCHING_DRIVER';
+      });
+
+      rideSubscription = FirebaseFirestore.instance
+          .collection('rideRequests')
+          .doc(ride.id)
+          .snapshots()
+          .listen((snapshot) {
+        final data = snapshot.data();
+        if (data == null || !mounted) return;
+        final nextStatus = data['status'] as String? ?? 'requested';
+        setState(() {
+          status = switch (nextStatus) {
+            'accepted' => 'DRIVER_ACCEPTED',
+            'arrived' => 'DRIVER_ARRIVED',
+            'started' => 'TRIP_STARTED',
+            'completed' => 'COMPLETED',
+            'cancelled' => 'CANCELLED',
+            _ => 'SEARCHING_DRIVER',
+          };
+        });
+      });
+    } catch (_) {
+      if (mounted) setState(() => status = 'Unable to request ride');
+    }
   }
 
   @override
