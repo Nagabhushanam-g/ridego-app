@@ -1,7 +1,13 @@
+import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:http/http.dart' as http;
+
+const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,16 +41,31 @@ class _RiderHomeState extends State<RiderHome> {
   GoogleMapController? map;
   LatLng pickup = const LatLng(17.3850, 78.4867);
   LatLng? destination;
+  String destinationAddress = '';
   String vehicle = 'Bike';
   String status = 'Choose your destination';
   int fare = 0;
   double distanceKm = 0;
   bool locationReady = false;
+  bool searching = false;
+  bool selectingPlace = false;
+  String? searchError;
+
+  final TextEditingController destinationSearchController =
+      TextEditingController();
+
+  List<_PlaceSuggestion> suggestions = [];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => locate());
+  }
+
+  @override
+  void dispose() {
+    destinationSearchController.dispose();
+    super.dispose();
   }
 
   Future<void> locate() async {
@@ -81,7 +102,164 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
-  void selectDestination(LatLng point) {
+  Future<void> searchDestinations(String value) async {
+    final query = value.trim();
+    if (query.length < 2) {
+      if (mounted) {
+        setState(() {
+          suggestions = [];
+          searchError = null;
+        });
+      }
+      return;
+    }
+
+    if (googleMapsApiKey.isEmpty) {
+      if (mounted) {
+        setState(() {
+          suggestions = [];
+          searchError = 'Google Maps API key is not configured';
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      searching = true;
+      searchError = null;
+    });
+
+    try {
+      final uri = Uri.parse(
+        'https://places.googleapis.com/v1/places:autocomplete',
+      );
+
+      final body = {
+        'input': query,
+        'languageCode': 'en',
+        'regionCode': 'IN',
+        'locationBias': {
+          'circle': {
+            'center': {
+              'latitude': pickup.latitude,
+              'longitude': pickup.longitude,
+            },
+            'radius': 50000.0,
+          },
+        },
+      };
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': googleMapsApiKey,
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Places search failed (\${response.statusCode})');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final rawSuggestions = (data['suggestions'] as List<dynamic>? ?? []);
+
+      final parsed = rawSuggestions
+          .map((item) {
+            final prediction =
+                item['placePrediction'] as Map<String, dynamic>?;
+            if (prediction == null) return null;
+
+            final placeId = prediction['placeId'] as String?;
+            final text = prediction['text'] as Map<String, dynamic>?;
+            final label = text?['text'] as String?;
+
+            if (placeId == null || label == null || label.isEmpty) {
+              return null;
+            }
+
+            return _PlaceSuggestion(placeId: placeId, label: label);
+          })
+          .whereType<_PlaceSuggestion>()
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        suggestions = parsed;
+        searching = false;
+        searchError = parsed.isEmpty ? 'No destinations found' : null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        searching = false;
+        suggestions = [];
+        searchError = 'Unable to search destinations';
+      });
+    }
+  }
+
+  Future<void> selectPlace(_PlaceSuggestion suggestion) async {
+    if (googleMapsApiKey.isEmpty) return;
+
+    setState(() {
+      selectingPlace = true;
+      searchError = null;
+      suggestions = [];
+    });
+
+    try {
+      final encodedPlaceId = Uri.encodeComponent(suggestion.placeId);
+      final uri = Uri.parse(
+        'https://places.googleapis.com/v1/places/$encodedPlaceId',
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'X-Goog-Api-Key': googleMapsApiKey,
+          'X-Goog-FieldMask': 'location,formattedAddress,displayName',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Place details failed (\${response.statusCode})');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final location = data['location'] as Map<String, dynamic>?;
+      final lat = (location?['latitude'] as num?)?.toDouble();
+      final lng = (location?['longitude'] as num?)?.toDouble();
+
+      if (lat == null || lng == null) {
+        throw Exception('Destination coordinates were not returned');
+      }
+
+      final address =
+          data['formattedAddress'] as String? ?? suggestion.label;
+
+      destinationSearchController.text = suggestion.label;
+      selectDestination(
+        LatLng(lat, lng),
+        address: address,
+        moveCamera: true,
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          selectingPlace = false;
+          searchError = 'Unable to load this destination';
+        });
+      }
+    }
+  }
+
+  void selectDestination(
+    LatLng point, {
+    String? address,
+    bool moveCamera = false,
+  }) {
     final meters = Geolocator.distanceBetween(
       pickup.latitude,
       pickup.longitude,
@@ -103,20 +281,42 @@ class _RiderHomeState extends State<RiderHome> {
       _ => 12,
     };
 
-    final calculatedFare =
-        (baseFare + (km * perKm)).ceil().clamp(baseFare, 100000);
+    final minimumFare = switch (vehicle) {
+      'Bike' => 40,
+      'Auto' => 60,
+      'Cab' => 100,
+      _ => 40,
+    };
+
+    final calculatedFare = math.max(
+      minimumFare,
+      (baseFare + (km * perKm)).ceil(),
+    );
 
     setState(() {
       destination = point;
+      destinationAddress = address ?? '';
       distanceKm = km;
       fare = calculatedFare;
       status = 'Destination selected';
+      selectingPlace = false;
+      suggestions = [];
+      searchError = null;
     });
+
+    if (moveCamera) {
+      map?.animateCamera(
+        CameraUpdate.newLatLngZoom(point, 15),
+      );
+    }
   }
 
   void recalculateFare() {
     if (destination != null) {
-      selectDestination(destination!);
+      selectDestination(
+        destination!,
+        address: destinationAddress.isEmpty ? null : destinationAddress,
+      );
     }
   }
 
@@ -137,14 +337,17 @@ class _RiderHomeState extends State<RiderHome> {
               myLocationEnabled: locationReady,
               myLocationButtonEnabled: false,
               onMapCreated: (controller) => map = controller,
-              onTap: selectDestination,
+              onTap: (point) => selectDestination(point),
               markers: {
                 Marker(markerId: const MarkerId('pickup'), position: pickup),
                 if (destination != null)
                   Marker(
                     markerId: const MarkerId('destination'),
                     position: destination!,
-                    infoWindow: const InfoWindow(title: 'Destination'),
+                    infoWindow: InfoWindow(
+                      title: 'Destination',
+                      snippet: destinationAddress,
+                    ),
                   ),
               },
               polylines: {
@@ -158,21 +361,121 @@ class _RiderHomeState extends State<RiderHome> {
             ),
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Column(
                   children: [
-                    const CircleAvatar(child: Icon(Icons.person)),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Text(
-                        'RideGo',
-                        style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+                    Row(
+                      children: [
+                        const CircleAvatar(child: Icon(Icons.person)),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'RideGo',
+                            style: TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton.filledTonal(
+                          onPressed: locate,
+                          icon: const Icon(Icons.my_location),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(16),
+                      color: Colors.white,
+                      child: TextField(
+                        controller: destinationSearchController,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: searchDestinations,
+                        onChanged: (value) {
+                          if (value.trim().length < 2) {
+                            setState(() {
+                              suggestions = [];
+                              searchError = null;
+                            });
+                          }
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search destination',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: searching || selectingPlace
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : IconButton(
+                                  tooltip: 'Search',
+                                  icon: const Icon(Icons.arrow_forward),
+                                  onPressed: () => searchDestinations(
+                                    destinationSearchController.text,
+                                  ),
+                                ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
                     ),
-                    IconButton.filledTonal(
-                      onPressed: locate,
-                      icon: const Icon(Icons.my_location),
-                    ),
+                    if (suggestions.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        constraints: const BoxConstraints(maxHeight: 260),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: const [
+                            BoxShadow(
+                              blurRadius: 12,
+                              color: Colors.black26,
+                            ),
+                          ],
+                        ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          itemCount: suggestions.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final item = suggestions[index];
+                            return ListTile(
+                              leading: const Icon(Icons.location_on_outlined),
+                              title: Text(item.label),
+                              onTap: () => selectPlace(item),
+                            );
+                          },
+                        ),
+                      ),
+                    if (searchError != null)
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          searchError!,
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -185,7 +488,9 @@ class _RiderHomeState extends State<RiderHome> {
                 padding: const EdgeInsets.all(18),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -194,7 +499,10 @@ class _RiderHomeState extends State<RiderHome> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Choose your ride',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -231,9 +539,16 @@ class _RiderHomeState extends State<RiderHome> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(status),
+                              if (destinationAddress.isNotEmpty)
+                                Text(
+                                  destinationAddress,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               if (distanceKm > 0)
                                 Text(
-                                  distanceKm.toStringAsFixed(1) + ' km estimated distance',
+                                  '\${distanceKm.toStringAsFixed(1)} km estimated distance',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                             ],
@@ -264,4 +579,14 @@ class _RiderHomeState extends State<RiderHome> {
           ],
         ),
       );
+}
+
+class _PlaceSuggestion {
+  const _PlaceSuggestion({
+    required this.placeId,
+    required this.label,
+  });
+
+  final String placeId;
+  final String label;
 }
