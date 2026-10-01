@@ -14,7 +14,7 @@ const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 const String androidCertSha1 = String.fromEnvironment('GOOGLE_MAPS_ANDROID_CERT');
 const String rideGoFirestoreDatabaseId = 'firestore-db-2';
 
-FirebaseFirestore get rideGoFirestore => rideGoFirestoreFor(
+FirebaseFirestore get rideGoFirestore => FirebaseFirestore.instanceFor(
       app: Firebase.app(),
       databaseId: rideGoFirestoreDatabaseId,
     );
