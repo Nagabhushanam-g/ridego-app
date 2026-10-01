@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'auth.dart';
 
 const String rideGoFirestoreDatabaseId = 'firestore-db-2';
 
@@ -31,7 +32,7 @@ class RideGoDriver extends StatelessWidget {
           useMaterial3: true,
           colorSchemeSeed: const Color(0xFF1565C0),
         ),
-        home: const DriverHome(),
+        home: const DriverAuthGate(home: DriverHome()),
       );
 }
 
