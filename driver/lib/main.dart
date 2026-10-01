@@ -87,6 +87,12 @@ class _DriverHomeState extends State<DriverHome> {
         .listen((snapshot) {
       if (!mounted || !online) return;
       if (snapshot.docs.isEmpty) {
+        // After accepting a ride, it is no longer returned by the
+        // "requested" query. Keep the active ride so the driver can
+        // advance it through ARRIVED -> STARTED -> COMPLETED.
+        if (rideId != null && status != 'Online — waiting for rides') {
+          return;
+        }
         setState(() {
           pendingRide = null;
           rideId = null;
