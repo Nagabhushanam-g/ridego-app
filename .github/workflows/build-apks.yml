@@ -140,7 +140,11 @@ jobs:
           echo "Permanent Rider signing: CONFIGURED"
           echo "API key value is not printed for security."
 
-          flutter build apk --release --dart-define=GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY"
+          RIDER_CERT_SHA1=$(keytool -list -v -keystore "$RIDEGO_KEYSTORE_PATH" -storepass "$RIDER_KEYSTORE_PASSWORD" -alias "$RIDER_KEY_ALIAS" | awk -F': ' '/SHA1:/{print $2; exit}' | tr -d ':')
+          test -n "$RIDER_CERT_SHA1" || { echo "Could not calculate Rider signing certificate SHA-1."; exit 1; }
+          echo "Rider certificate fingerprint prepared for Places requests."
+
+          flutter build apk --release             --dart-define=GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY"             --dart-define=GOOGLE_MAPS_ANDROID_CERT="$RIDER_CERT_SHA1"
 
       - name: Verify Rider release signing
         working-directory: rider/android
