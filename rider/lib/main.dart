@@ -38,6 +38,7 @@ class _RiderHomeState extends State<RiderHome> {
   String vehicle = 'Bike';
   String status = 'Choose your destination';
   int fare = 0;
+  double distanceKm = 0;
   bool locationReady = false;
 
   @override
@@ -81,10 +82,42 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   void selectDestination(LatLng point) {
+    final meters = Geolocator.distanceBetween(
+      pickup.latitude,
+      pickup.longitude,
+      point.latitude,
+      point.longitude,
+    );
+    final km = meters / 1000.0;
+
+    final baseFare = switch (vehicle) {
+      'Bike' => 30,
+      'Auto' => 40,
+      'Cab' => 70,
+      _ => 30,
+    };
+    final perKm = switch (vehicle) {
+      'Bike' => 12,
+      'Auto' => 16,
+      'Cab' => 22,
+      _ => 12,
+    };
+
+    final calculatedFare =
+        (baseFare + (km * perKm)).ceil().clamp(baseFare, 100000);
+
     setState(() {
       destination = point;
+      distanceKm = km;
+      fare = calculatedFare;
       status = 'Destination selected';
     });
+  }
+
+  void recalculateFare() {
+    if (destination != null) {
+      selectDestination(destination!);
+    }
   }
 
   void book() {
@@ -111,6 +144,15 @@ class _RiderHomeState extends State<RiderHome> {
                   Marker(
                     markerId: const MarkerId('destination'),
                     position: destination!,
+                    infoWindow: const InfoWindow(title: 'Destination'),
+                  ),
+              },
+              polylines: {
+                if (destination != null)
+                  Polyline(
+                    polylineId: const PolylineId('ride_preview'),
+                    points: [pickup, destination!],
+                    width: 5,
                   ),
               },
             ),
@@ -175,17 +217,34 @@ class _RiderHomeState extends State<RiderHome> {
                         ),
                       ],
                       selected: {vehicle},
-                      onSelectionChanged: (selection) =>
-                          setState(() => vehicle = selection.first),
+                      onSelectionChanged: (selection) {
+                        setState(() => vehicle = selection.first);
+                        recalculateFare();
+                      },
                     ),
                     const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Flexible(child: Text(status)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(status),
+                              if (distanceKm > 0)
+                                Text(
+                                  distanceKm.toStringAsFixed(1) + ' km estimated distance',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                            ],
+                          ),
+                        ),
                         Text(
-                          fare == 0 ? 'Fare calculated by server' : '₹$fare',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                          fare == 0 ? 'Select destination' : '₹$fare',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                       ],
                     ),
