@@ -9,7 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 const String rideGoFirestoreDatabaseId = 'firestore-db-2';
 
-FirebaseFirestore get rideGoFirestore => rideGoFirestoreFor(
+FirebaseFirestore get rideGoFirestore => FirebaseFirestore.instanceFor(
       app: Firebase.app(),
       databaseId: rideGoFirestoreDatabaseId,
     );
