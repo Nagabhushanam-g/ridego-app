@@ -557,7 +557,7 @@ class _RiderHomeState extends State<RiderHome> {
                                 ),
                               if (distanceKm > 0)
                                 Text(
-                                  '\${distanceKm.toStringAsFixed(1)} km estimated distance',
+                                  '${distanceKm.toStringAsFixed(1)} km estimated distance',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                             ],
