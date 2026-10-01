@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth.dart';
 import 'history.dart';
+import 'notification_service.dart';
 
 const String rideGoFirestoreDatabaseId = 'firestore-db-2';
 
@@ -59,6 +60,7 @@ class _DriverHomeState extends State<DriverHome> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await RideGoNotificationService.initialize(context, role: 'driver');
       await ensureSignedIn();
       await locate();
     });
