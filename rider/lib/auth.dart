@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'profile.dart';
 
 class RiderAuthGate extends StatelessWidget {
   const RiderAuthGate({super.key, required this.home});
@@ -16,7 +17,7 @@ class RiderAuthGate extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        if (snapshot.data != null) return home;
+        if (snapshot.data != null) return RiderProfileGate(home: home);
         return const RiderAuthScreen();
       },
     );
