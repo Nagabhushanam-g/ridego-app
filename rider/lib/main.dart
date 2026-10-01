@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'auth.dart';
 import 'package:http/http.dart' as http;
 
 const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
@@ -36,7 +37,7 @@ class RideGoRider extends StatelessWidget {
           useMaterial3: true,
           colorSchemeSeed: const Color(0xFF1565C0),
         ),
-        home: const RiderHome(),
+        home: const RiderAuthGate(home: RiderHome()),
       );
 }
 
