@@ -140,7 +140,7 @@ jobs:
           echo "Permanent Rider signing: CONFIGURED"
           echo "API key value is not printed for security."
 
-          flutter build apk --release
+          flutter build apk --release --dart-define=GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY"
 
       - name: Verify Rider release signing
         working-directory: rider/android
