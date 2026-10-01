@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,12 +39,59 @@ class _DriverHomeState extends State<DriverHome> {
   bool locationReady = false;
   bool online = false;
   String status = 'Offline';
-  int? rideId;
+  String? driverUid;
+  String? rideId;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? rideSubscription;
+  Map<String, dynamic>? pendingRide;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => locate());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ensureSignedIn();
+      await locate();
+    });
+  }
+
+  @override
+  void dispose() {
+    rideSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> ensureSignedIn() async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      final credential = await FirebaseAuth.instance.signInAnonymously();
+      driverUid = credential.user!.uid;
+    } else {
+      driverUid = FirebaseAuth.instance.currentUser!.uid;
+    }
+  }
+
+  void watchRideRequests() {
+    rideSubscription?.cancel();
+    rideSubscription = FirebaseFirestore.instance
+        .collection('rideRequests')
+        .where('status', isEqualTo: 'requested')
+        .limit(20)
+        .snapshots()
+        .listen((snapshot) {
+      if (!mounted || !online) return;
+      if (snapshot.docs.isEmpty) {
+        setState(() {
+          pendingRide = null;
+          rideId = null;
+          status = 'Online — waiting for rides';
+        });
+        return;
+      }
+      final doc = snapshot.docs.first;
+      setState(() {
+        rideId = doc.id;
+        pendingRide = doc.data();
+        status = 'New ride request';
+      });
+    });
   }
 
   Future<void> locate() async {
@@ -78,28 +127,72 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
-  void toggle() {
-    setState(() {
-      online = !online;
-      rideId = null;
-      status = online ? 'Online — waiting for rides' : 'Offline';
-    });
+  Future<void> toggle() async {
+    if (!online) {
+      await ensureSignedIn();
+      setState(() {
+        online = true;
+        status = 'Online — waiting for rides';
+        pendingRide = null;
+        rideId = null;
+      });
+      watchRideRequests();
+    } else {
+      await rideSubscription?.cancel();
+      rideSubscription = null;
+      setState(() {
+        online = false;
+        pendingRide = null;
+        rideId = null;
+        status = 'Offline';
+      });
+    }
   }
 
-  void accept() {
-    setState(() {
-      rideId = 1001;
-      status = 'DRIVER_ACCEPTED';
-    });
+  Future<void> accept() async {
+    final id = rideId;
+    if (id == null || driverUid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('rideRequests').doc(id).update({
+        'status': 'accepted',
+        'driverId': driverUid,
+        'acceptedAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) setState(() => status = 'DRIVER_ACCEPTED');
+    } catch (_) {
+      if (mounted) setState(() => status = 'Unable to accept ride');
+    }
   }
 
-  void next() {
-    if (status == 'DRIVER_ACCEPTED') {
-      setState(() => status = 'DRIVER_ARRIVED');
-    } else if (status == 'DRIVER_ARRIVED') {
-      setState(() => status = 'TRIP_STARTED');
-    } else if (status == 'TRIP_STARTED') {
-      setState(() => status = 'COMPLETED');
+  Future<void> next() async {
+    final id = rideId;
+    if (id == null) return;
+    final nextStatus = switch (status) {
+      'DRIVER_ACCEPTED' => 'arrived',
+      'DRIVER_ARRIVED' => 'started',
+      'TRIP_STARTED' => 'completed',
+      _ => null,
+    };
+    if (nextStatus == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('rideRequests').doc(id).update({
+        'status': nextStatus,
+        if (nextStatus == 'arrived') 'arrivedAt': FieldValue.serverTimestamp(),
+        if (nextStatus == 'started') 'startedAt': FieldValue.serverTimestamp(),
+        if (nextStatus == 'completed') 'completedAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
+      setState(() {
+        status = switch (nextStatus) {
+          'arrived' => 'DRIVER_ARRIVED',
+          'started' => 'TRIP_STARTED',
+          'completed' => 'COMPLETED',
+          _ => status,
+        };
+        if (nextStatus == 'completed') pendingRide = null;
+      });
+    } catch (_) {
+      if (mounted) setState(() => status = 'Unable to update ride');
     }
   }
 
@@ -178,13 +271,19 @@ class _DriverHomeState extends State<DriverHome> {
                     const SizedBox(height: 8),
                     Text(status),
                     const SizedBox(height: 12),
-                    if (online && rideId == null)
+                    if (online && pendingRide != null && rideId != null)
                       Card(
                         child: ListTile(
                           leading: const Icon(Icons.notifications_active),
-                          title: const Text('New ride request'),
-                          subtitle: const Text(
-                            'Pickup nearby • Estimated fare ₹120',
+                          title: Text(
+                            (pendingRide!['vehicle'] ?? 'Ride').toString() + ' request',
+                          ),
+                          subtitle: Text(
+                            'Pickup nearby • ₹' +
+                                (pendingRide!['fare'] ?? 0).toString() +
+                                ' • ' +
+                                (pendingRide!['distanceKm'] ?? 0).toString() +
+                                ' km',
                           ),
                           trailing: FilledButton(
                             onPressed: accept,
