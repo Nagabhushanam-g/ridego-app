@@ -10,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth.dart';
 import 'history.dart';
+import 'notification_service.dart';
 import 'package:http/http.dart' as http;
 
 const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
@@ -74,7 +75,10 @@ class _RiderHomeState extends State<RiderHome> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => locate());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await RideGoNotificationService.initialize(context, role: 'rider');
+      await locate();
+    });
   }
 
   @override
