@@ -7,6 +7,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+const String rideGoFirestoreDatabaseId = 'firestore-db-2';
+
+FirebaseFirestore get rideGoFirestore => rideGoFirestoreFor(
+      app: Firebase.app(),
+      databaseId: rideGoFirestoreDatabaseId,
+    );
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -72,7 +79,7 @@ class _DriverHomeState extends State<DriverHome> {
 
   void watchRideRequests() {
     rideSubscription?.cancel();
-    rideSubscription = FirebaseFirestore.instance
+    rideSubscription = rideGoFirestore
         .collection('rideRequests')
         .where('status', isEqualTo: 'requested')
         .limit(20)
@@ -155,7 +162,7 @@ class _DriverHomeState extends State<DriverHome> {
     final id = rideId;
     if (id == null || driverUid == null) return;
     try {
-      await FirebaseFirestore.instance.collection('rideRequests').doc(id).update({
+      await rideGoFirestore.collection('rideRequests').doc(id).update({
         'status': 'accepted',
         'driverId': driverUid,
         'acceptedAt': FieldValue.serverTimestamp(),
@@ -177,7 +184,7 @@ class _DriverHomeState extends State<DriverHome> {
     };
     if (nextStatus == null) return;
     try {
-      await FirebaseFirestore.instance.collection('rideRequests').doc(id).update({
+      await rideGoFirestore.collection('rideRequests').doc(id).update({
         'status': nextStatus,
         if (nextStatus == 'arrived') 'arrivedAt': FieldValue.serverTimestamp(),
         if (nextStatus == 'started') 'startedAt': FieldValue.serverTimestamp(),
