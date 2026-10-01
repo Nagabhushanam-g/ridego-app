@@ -307,7 +307,7 @@ class _RiderHomeState extends State<RiderHome> {
     final calculatedFare = math.max(
       minimumFare,
       (baseFare + (km * perKm)).ceil(),
-    );
+    ).toInt();
 
     setState(() {
       destination = point;
