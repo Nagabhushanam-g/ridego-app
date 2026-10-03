@@ -91,9 +91,6 @@ class _DriverHomeState extends State<DriverHome> {
         .listen((snapshot) {
       if (!mounted || !online) return;
       if (snapshot.docs.isEmpty) {
-        // After accepting a ride, it is no longer returned by the
-        // "requested" query. Keep the active ride so the driver can
-        // advance it through ARRIVED -> STARTED -> COMPLETED.
         if (rideId != null && status != 'Online — waiting for rides') {
           return;
         }
@@ -296,7 +293,10 @@ class _DriverHomeState extends State<DriverHome> {
                     const SizedBox(height: 8),
                     Text(status),
                     const SizedBox(height: 12),
-                    if (online && pendingRide != null && rideId != null)
+                    if (online &&
+                        pendingRide != null &&
+                        rideId != null &&
+                        status == 'New ride request')
                       Card(
                         child: ListTile(
                           leading: const Icon(Icons.notifications_active),
