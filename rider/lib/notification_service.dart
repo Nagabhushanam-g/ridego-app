@@ -38,16 +38,23 @@ class RideGoNotificationService {
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        debugPrint('RideGo FCM permission denied for role=$role.');
         return;
       }
 
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-      await _saveToken(role, await messaging.getToken());
+      final token = await messaging.getToken();
+      await _saveToken(role, token);
 
       await _tokenSubscription?.cancel();
       _tokenSubscription = messaging.onTokenRefresh.listen(
-        (token) => _saveToken(role, token),
+        (token) async {
+          await _saveToken(role, token);
+        },
+        onError: (Object error) {
+          debugPrint('RideGo FCM token refresh failed: $error');
+        },
       );
 
       await _messageSubscription?.cancel();
@@ -69,16 +76,34 @@ class RideGoNotificationService {
           ),
         );
       });
-    } catch (_) {
-      // Notifications must never prevent the ride app from opening.
+    } catch (error, stackTrace) {
+      // Notification setup must not prevent the ride app from opening.
+      debugPrint('RideGo notification initialization failed for role=$role: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
   static Future<void> _saveToken(String role, String? token) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || token == null || token.isEmpty) return;
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
+    if (uid == null) {
+      debugPrint('RideGo cannot save FCM token: no authenticated user (role=$role).');
+      return;
+    }
+    if (token == null || token.isEmpty) {
+      debugPrint('RideGo FCM token is empty for uid=$uid (role=$role).');
+      return;
+    }
 
     try {
+      // Explicitly create the parent document as well. Firestore permits
+      // subcollections without a parent document, which can make the users
+      // collection look absent in the console.
+      await _firestore.collection('users').doc(uid).set({
+        'uid': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
       await _firestore
           .collection('users')
           .doc(uid)
@@ -90,8 +115,12 @@ class RideGoNotificationService {
         'platform': 'android',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-    } catch (_) {
-      // Token registration is best-effort and must not break the app.
+      debugPrint('RideGo FCM token saved for uid=$uid (role=$role).');
+    } catch (error, stackTrace) {
+      // Keep app startup resilient, but log the cause so token-write failures
+      // can be diagnosed in Android logs.
+      debugPrint('RideGo failed to save FCM token for uid=$uid (role=$role): $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 }
