@@ -32,7 +32,8 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read, create, update: if isSelf(uid)
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid)
         && request.resource.data.uid == uid;
       allow delete: if false;
 
@@ -93,7 +94,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // No other client-readable or client-writable collections by default.
     match /{document=**} {
       allow read, write: if false;
     }
