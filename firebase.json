@@ -3,7 +3,10 @@
     "source": "functions",
     "runtime": "nodejs22"
   },
-  "firestore": {
-    "rules": "firestore.rules"
-  }
+  "firestore": [
+    {
+      "database": "firestore-db-2",
+      "rules": "firestore.rules"
+    }
+  ]
 }
