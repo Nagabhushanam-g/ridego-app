@@ -37,9 +37,9 @@ jobs:
           print(data["project_info"]["project_id"])
           PY
           )
-          test -n "$PROJECT_ID"
+          test "$PROJECT_ID" = "ridego-af7c3" || { echo "Unexpected Firebase project: $PROJECT_ID"; exit 1; }
           echo "FIREBASE_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
-      - name: Deploy Firestore rules only
-        run: firebase deploy --only firestore:rules --project "$FIREBASE_PROJECT_ID" --non-interactive
+      - name: Deploy Firestore rules to configured database only
+        run: firebase deploy --only firestore --project "$FIREBASE_PROJECT_ID" --non-interactive
