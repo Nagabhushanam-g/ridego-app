@@ -41,5 +41,11 @@ jobs:
           echo "FIREBASE_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
-      - name: Deploy Firestore rules to configured database only
-        run: firebase deploy --only firestore --project "$FIREBASE_PROJECT_ID" --non-interactive
+      - name: Verify target database exists
+        run: |
+          set -e
+          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('firebase.json','utf8'));const f=Array.isArray(c.firestore)?c.firestore:[c.firestore];if(!f.some(x=>x && x.database==='firestore-db-2' && x.rules==='firestore.rules')){console.error('firebase.json must target existing database firestore-db-2 with firestore.rules');process.exit(1)}"
+          echo "firebase.json targets the existing firestore-db-2 database."
+
+      - name: Deploy only Firestore rules
+        run: firebase deploy --only firestore:rules --project "$FIREBASE_PROJECT_ID" --non-interactive
