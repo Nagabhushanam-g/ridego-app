@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function profileExists(uid) {
+      return exists(/databases/$(database)/documents/profiles/$(uid));
+    }
+
+    function isDriver() {
+      return signedIn()
+        && profileExists(request.auth.uid)
+        && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'driver';
+    }
+
+    match /profiles/{uid} {
+      allow read: if isSelf(uid);
+      allow create: if isSelf(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.role in ['rider', 'driver'];
+      allow update: if isSelf(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    match /users/{uid} {
+      allow read, create, update: if isSelf(uid)
+        && request.resource.data.uid == uid;
+      allow delete: if false;
+
+      match /devices/{deviceId} {
+        allow read: if isSelf(uid);
+        allow create, update: if isSelf(uid)
+          && request.resource.data.token is string
+          && request.resource.data.token.size() > 0
+          && request.resource.data.token == deviceId
+          && request.resource.data.role in ['rider', 'driver']
+          && request.resource.data.platform == 'android';
+        allow delete: if isSelf(uid);
+      }
+    }
+
+    match /rideRequests/{rideId} {
+      allow create: if signedIn()
+        && request.resource.data.riderId == request.auth.uid
+        && request.resource.data.status == 'requested'
+        && request.resource.data.driverId == null;
+
+      allow get, list: if signedIn() && (
+        resource.data.riderId == request.auth.uid
+        || resource.data.driverId == request.auth.uid
+        || (isDriver() && resource.data.status == 'requested')
+      );
+
+      // Riders can cancel only rides that have not yet been accepted.
+      allow update: if signedIn() && (
+        (
+          resource.data.riderId == request.auth.uid
+          && resource.data.status == 'requested'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+        )
+        ||
+        (
+          isDriver()
+          && resource.data.status == 'requested'
+          && resource.data.driverId == null
+          && request.resource.data.status == 'accepted'
+          && request.resource.data.driverId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'driverId', 'acceptedAt'])
+        )
+        ||
+        (
+          isDriver()
+          && resource.data.driverId == request.auth.uid
+          && (
+            (resource.data.status == 'accepted' && request.resource.data.status == 'arrived')
+            || (resource.data.status == 'arrived' && request.resource.data.status == 'started')
+            || (resource.data.status == 'started' && request.resource.data.status == 'completed')
+          )
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'arrivedAt', 'startedAt', 'completedAt'])
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    // No other client-readable or client-writable collections by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
