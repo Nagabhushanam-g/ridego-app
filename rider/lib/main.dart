@@ -408,6 +408,26 @@ class _RiderHomeState extends State<RiderHome> {
             _ => 'SEARCHING_DRIVER',
           };
         });
+
+        if (nextStatus == 'completed') {
+          Future.delayed(const Duration(seconds: 2), () {
+            if (!mounted || rideId != ride.id) return;
+            rideSubscription?.cancel();
+            rideSubscription = null;
+            destinationSearchController.clear();
+            setState(() {
+              rideId = null;
+              destination = null;
+              destinationAddress = '';
+              fare = 0;
+              distanceKm = 0;
+              status = 'Choose your destination';
+              suggestions = [];
+              searchError = null;
+            });
+            map?.animateCamera(CameraUpdate.newLatLngZoom(pickup, 15));
+          });
+        }
       });
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to request ride');
