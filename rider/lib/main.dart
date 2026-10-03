@@ -62,6 +62,7 @@ class _RiderHomeState extends State<RiderHome> {
   bool locationReady = false;
   bool searching = false;
   bool selectingPlace = false;
+  bool get rideActive => rideId != null;
   String? searchError;
 
   final TextEditingController destinationSearchController =
@@ -443,7 +444,7 @@ class _RiderHomeState extends State<RiderHome> {
               myLocationEnabled: locationReady,
               myLocationButtonEnabled: false,
               onMapCreated: (controller) => map = controller,
-              onTap: (point) => selectDestination(point),
+              onTap: rideActive ? null : (point) => selectDestination(point),
               markers: {
                 Marker(markerId: const MarkerId('pickup'), position: pickup),
                 if (destination != null)
@@ -503,6 +504,7 @@ class _RiderHomeState extends State<RiderHome> {
                       child: TextField(
                         controller: destinationSearchController,
                         textInputAction: TextInputAction.search,
+                        enabled: !rideActive,
                         onSubmitted: searchDestinations,
                         onChanged: (value) {
                           if (value.trim().length < 2) {
@@ -637,10 +639,12 @@ class _RiderHomeState extends State<RiderHome> {
                         ),
                       ],
                       selected: {vehicle},
-                      onSelectionChanged: (selection) {
-                        setState(() => vehicle = selection.first);
-                        recalculateFare();
-                      },
+                      onSelectionChanged: rideActive
+                          ? null
+                          : (selection) {
+                              setState(() => vehicle = selection.first);
+                              recalculateFare();
+                            },
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -680,8 +684,8 @@ class _RiderHomeState extends State<RiderHome> {
                       width: double.infinity,
                       height: 50,
                       child: FilledButton(
-                        onPressed: destination == null ? null : book,
-                        child: const Text('BOOK RIDE'),
+                        onPressed: destination == null || rideActive ? null : book,
+                        child: Text(rideActive ? 'RIDE IN PROGRESS' : 'BOOK RIDE'),
                       ),
                     ),
                   ],
