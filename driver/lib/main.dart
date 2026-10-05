@@ -62,6 +62,7 @@ class _DriverHomeState extends State<DriverHome> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await ensureSignedIn();
       await RideGoNotificationService.initialize(context, role: 'driver');
+      await restoreActiveRide();
       await locate();
     });
   }
@@ -79,6 +80,74 @@ class _DriverHomeState extends State<DriverHome> {
     } else {
       driverUid = FirebaseAuth.instance.currentUser!.uid;
     }
+  }
+
+  String driverUiStatus(String firestoreStatus) => switch (firestoreStatus) {
+        'accepted' => 'DRIVER_ACCEPTED',
+        'arrived' => 'DRIVER_ARRIVED',
+        'started' => 'TRIP_STARTED',
+        'completed' => 'COMPLETED',
+        _ => 'Online — waiting for rides',
+      };
+
+  Future<void> restoreActiveRide() async {
+    final uid = driverUid;
+    if (uid == null) return;
+    try {
+      final snapshot = await rideGoFirestore
+          .collection('rideRequests')
+          .where('driverId', isEqualTo: uid)
+          .get();
+
+      QueryDocumentSnapshot<Map<String, dynamic>>? active;
+      for (final doc in snapshot.docs) {
+        final rideStatus = (doc.data()['status'] ?? '').toString();
+        if (rideStatus == 'accepted' ||
+            rideStatus == 'arrived' ||
+            rideStatus == 'started') {
+          active = doc;
+          break;
+        }
+      }
+
+      if (active == null || !mounted) return;
+      setState(() {
+        online = true;
+        rideId = active!.id;
+        pendingRide = active.data();
+        status = driverUiStatus((active.data()['status'] ?? '').toString());
+      });
+      watchAssignedRide(active.id);
+    } catch (_) {
+      // Startup recovery is best-effort; driver can still go online manually.
+    }
+  }
+
+  void watchAssignedRide(String id) {
+    rideSubscription?.cancel();
+    rideSubscription = rideGoFirestore
+        .collection('rideRequests')
+        .doc(id)
+        .snapshots()
+        .listen((snapshot) {
+      if (!mounted) return;
+      final data = snapshot.data();
+      if (data == null) return;
+      final rideStatus = (data['status'] ?? '').toString();
+      if (rideStatus == 'completed' || rideStatus == 'cancelled') {
+        setState(() {
+          pendingRide = null;
+          rideId = null;
+          status = online ? 'Online — waiting for rides' : 'Offline';
+        });
+        if (online) watchRideRequests();
+        return;
+      }
+      setState(() {
+        pendingRide = data;
+        status = driverUiStatus(rideStatus);
+      });
+    });
   }
 
   void watchRideRequests() {
@@ -169,12 +238,26 @@ class _DriverHomeState extends State<DriverHome> {
     final id = rideId;
     if (id == null || driverUid == null) return;
     try {
-      await rideGoFirestore.collection('rideRequests').doc(id).update({
-        'status': 'accepted',
-        'driverId': driverUid,
-        'acceptedAt': FieldValue.serverTimestamp(),
+      await rideGoFirestore.runTransaction((transaction) async {
+        final ref = rideGoFirestore.collection('rideRequests').doc(id);
+        final snapshot = await transaction.get(ref);
+        final data = snapshot.data();
+        if (!snapshot.exists ||
+            data == null ||
+            data['status'] != 'requested' ||
+            data['driverId'] != null) {
+          throw StateError('Ride is no longer available');
+        }
+        transaction.update(ref, {
+          'status': 'accepted',
+          'driverId': driverUid,
+          'acceptedAt': FieldValue.serverTimestamp(),
+        });
       });
-      if (mounted) setState(() => status = 'DRIVER_ACCEPTED');
+      if (mounted) {
+        setState(() => status = 'DRIVER_ACCEPTED');
+        watchAssignedRide(id);
+      }
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to accept ride');
     }
