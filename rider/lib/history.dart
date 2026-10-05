@@ -77,8 +77,9 @@ class RiderHistoryScreen extends StatelessWidget {
                   )),
                   title: Text('$vehicle • ₹$fare'),
                   subtitle: Text(
-                    '$destination\n$distance km'
-                    ${rating == null ? '' : '\nRating: $rating/5'},
+                    rating == null
+                        ? '$destination\\n$distance km'
+                        : '$destination\\n$distance km\\nRating: $rating/5',
                   ),
                   isThreeLine: rating == null,
                   trailing: status == 'COMPLETED'
