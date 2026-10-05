@@ -205,8 +205,18 @@ class _DriverHomeState extends State<DriverHome> {
           'completed' => 'COMPLETED',
           _ => status,
         };
-        if (nextStatus == 'completed') pendingRide = null;
+        if (nextStatus == 'completed') {
+          pendingRide = null;
+          rideId = null;
+        }
       });
+
+      if (nextStatus == 'completed') {
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (mounted && online && rideId == null) {
+          setState(() => status = 'Online — waiting for rides');
+        }
+      }
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to update ride');
     }
@@ -316,7 +326,10 @@ class _DriverHomeState extends State<DriverHome> {
                           ),
                         ),
                       ),
-                    if (rideId != null && status != 'COMPLETED')
+                    if (rideId != null &&
+                        (status == 'DRIVER_ACCEPTED' ||
+                            status == 'DRIVER_ARRIVED' ||
+                            status == 'TRIP_STARTED'))
                       SizedBox(
                         width: double.infinity,
                         height: 50,
