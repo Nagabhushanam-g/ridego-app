@@ -53,7 +53,7 @@ class _DriverHomeState extends State<DriverHome> {
   String status = 'Offline';
   String? driverUid;
   String? rideId;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? rideSubscription;
+  StreamSubscription? rideSubscription;
   Map<String, dynamic>? pendingRide;
 
   @override
