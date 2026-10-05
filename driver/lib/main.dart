@@ -212,9 +212,32 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
+  bool get hasAssignedRide =>
+      rideId != null &&
+      (status == 'DRIVER_ACCEPTED' ||
+          status == 'DRIVER_ARRIVED' ||
+          status == 'TRIP_STARTED');
+
   Future<void> toggle() async {
+    if (online && hasAssignedRide) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Complete the active ride before going offline.'),
+          ),
+        );
+      }
+      return;
+    }
+
     if (!online) {
       await ensureSignedIn();
+
+      // Always restore an existing assignment before listening for new work.
+      await restoreActiveRide();
+      if (!mounted) return;
+      if (hasAssignedRide) return;
+
       setState(() {
         online = true;
         status = 'Online — waiting for rides';
