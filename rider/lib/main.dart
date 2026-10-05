@@ -93,7 +93,9 @@ class _RiderHomeState extends State<RiderHome> {
   Future<void> locate() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        if (mounted) setState(() => status = 'Turn on Location to continue');
+        if (mounted && !rideActive) {
+          setState(() => status = 'Turn on Location to continue');
+        }
         return;
       }
 
@@ -104,7 +106,9 @@ class _RiderHomeState extends State<RiderHome> {
 
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        if (mounted) setState(() => status = 'Location permission is required');
+        if (mounted && !rideActive) {
+          setState(() => status = 'Location permission is required');
+        }
         return;
       }
 
@@ -113,14 +117,20 @@ class _RiderHomeState extends State<RiderHome> {
 
       if (!mounted) return;
       setState(() {
-        pickup = current;
+        // Location refresh must not overwrite a restored active-ride state
+        // such as DRIVER_ACCEPTED, DRIVER_ARRIVED, or TRIP_STARTED.
+        if (!rideActive) {
+          pickup = current;
+          status = 'Choose your destination';
+        }
         locationReady = true;
-        status = 'Choose your destination';
       });
 
       map?.animateCamera(CameraUpdate.newLatLngZoom(current, 15));
     } catch (_) {
-      if (mounted) setState(() => status = 'Unable to get current location');
+      if (mounted && !rideActive) {
+        setState(() => status = 'Unable to get current location');
+      }
     }
   }
 
