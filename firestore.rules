@@ -71,6 +71,16 @@ service cloud.firestore {
         )
         ||
         (
+          resource.data.riderId == request.auth.uid
+          && resource.data.status == 'completed'
+          && request.resource.data.status == 'completed'
+          && request.resource.data.riderRating is int
+          && request.resource.data.riderRating >= 1
+          && request.resource.data.riderRating <= 5
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['riderRating', 'ratedAt'])
+        )
+        ||
+        (
           isDriver()
           && resource.data.status == 'requested'
           && resource.data.driverId == null
