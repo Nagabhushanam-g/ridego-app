@@ -460,6 +460,26 @@ class _RiderHomeState extends State<RiderHome> {
     });
   }
 
+  Future<void> cancelRide() async {
+    final id = rideId;
+    if (id == null || status != 'SEARCHING_DRIVER') return;
+
+    try {
+      await rideGoFirestore.collection('rideRequests').doc(id).update({
+        'status': 'cancelled',
+        'cancelledAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to cancel ride. A driver may have accepted it.'),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> book() async {
     if (destination == null || fare <= 0) return;
 
@@ -752,6 +772,17 @@ class _RiderHomeState extends State<RiderHome> {
                         child: Text(rideActive ? 'RIDE IN PROGRESS' : 'BOOK RIDE'),
                       ),
                     ),
+                    if (status == 'SEARCHING_DRIVER') ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: OutlinedButton(
+                          onPressed: cancelRide,
+                          child: const Text('CANCEL RIDE'),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
