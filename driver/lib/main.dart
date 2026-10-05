@@ -259,7 +259,13 @@ class _DriverHomeState extends State<DriverHome> {
         watchAssignedRide(id);
       }
     } catch (_) {
-      if (mounted) setState(() => status = 'Unable to accept ride');
+      if (!mounted) return;
+      setState(() {
+        pendingRide = null;
+        rideId = null;
+        status = online ? 'Online — waiting for rides' : 'Offline';
+      });
+      if (online) watchRideRequests();
     }
   }
 
