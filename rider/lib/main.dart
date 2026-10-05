@@ -78,6 +78,7 @@ class _RiderHomeState extends State<RiderHome> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await RideGoNotificationService.initialize(context, role: 'rider');
+      await restoreActiveRide();
       await locate();
     });
   }
@@ -358,6 +359,107 @@ class _RiderHomeState extends State<RiderHome> {
     riderUid = credential.user!.uid;
   }
 
+  String riderUiStatus(String firestoreStatus) => switch (firestoreStatus) {
+        'accepted' => 'DRIVER_ACCEPTED',
+        'arrived' => 'DRIVER_ARRIVED',
+        'started' => 'TRIP_STARTED',
+        'completed' => 'COMPLETED',
+        'cancelled' => 'CANCELLED',
+        _ => 'SEARCHING_DRIVER',
+      };
+
+  void applyRideData(String id, Map<String, dynamic> data) {
+    final pickupData = data['pickup'] as Map<String, dynamic>?;
+    final destinationData = data['destination'] as Map<String, dynamic>?;
+    final pickupLat = (pickupData?['latitude'] as num?)?.toDouble();
+    final pickupLng = (pickupData?['longitude'] as num?)?.toDouble();
+    final destinationLat =
+        (destinationData?['latitude'] as num?)?.toDouble();
+    final destinationLng =
+        (destinationData?['longitude'] as num?)?.toDouble();
+
+    setState(() {
+      rideId = id;
+      status = riderUiStatus((data['status'] ?? 'requested').toString());
+      vehicle = (data['vehicle'] ?? vehicle).toString();
+      fare = (data['fare'] as num?)?.toInt() ?? fare;
+      distanceKm = (data['distanceKm'] as num?)?.toDouble() ?? distanceKm;
+      destinationAddress =
+          (data['destinationAddress'] ?? destinationAddress).toString();
+      if (pickupLat != null && pickupLng != null) {
+        pickup = LatLng(pickupLat, pickupLng);
+      }
+      if (destinationLat != null && destinationLng != null) {
+        destination = LatLng(destinationLat, destinationLng);
+      }
+    });
+  }
+
+  Future<void> restoreActiveRide() async {
+    try {
+      await ensureSignedIn();
+      final uid = riderUid;
+      if (uid == null) return;
+
+      final snapshot = await rideGoFirestore
+          .collection('rideRequests')
+          .where('riderId', isEqualTo: uid)
+          .get();
+
+      QueryDocumentSnapshot<Map<String, dynamic>>? active;
+      for (final doc in snapshot.docs) {
+        final rideStatus = (doc.data()['status'] ?? '').toString();
+        if (rideStatus == 'requested' ||
+            rideStatus == 'accepted' ||
+            rideStatus == 'arrived' ||
+            rideStatus == 'started') {
+          active = doc;
+          break;
+        }
+      }
+
+      if (active == null || !mounted) return;
+      applyRideData(active.id, active.data());
+      watchRide(active.id);
+    } catch (_) {
+      // Startup recovery is best-effort; normal booking remains available.
+    }
+  }
+
+  void watchRide(String id) {
+    rideSubscription?.cancel();
+    rideSubscription = rideGoFirestore
+        .collection('rideRequests')
+        .doc(id)
+        .snapshots()
+        .listen((snapshot) {
+      final data = snapshot.data();
+      if (data == null || !mounted) return;
+      final nextStatus = (data['status'] ?? 'requested').toString();
+      applyRideData(id, data);
+
+      if (nextStatus == 'completed' || nextStatus == 'cancelled') {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (!mounted || rideId != id) return;
+          rideSubscription?.cancel();
+          rideSubscription = null;
+          destinationSearchController.clear();
+          setState(() {
+            rideId = null;
+            destination = null;
+            destinationAddress = '';
+            fare = 0;
+            distanceKm = 0;
+            status = 'Choose your destination';
+            suggestions = [];
+            searchError = null;
+          });
+          map?.animateCamera(CameraUpdate.newLatLngZoom(pickup, 15));
+        });
+      }
+    });
+  }
+
   Future<void> book() async {
     if (destination == null || fare <= 0) return;
 
@@ -391,45 +493,7 @@ class _RiderHomeState extends State<RiderHome> {
         status = 'SEARCHING_DRIVER';
       });
 
-      rideSubscription = rideGoFirestore
-          .collection('rideRequests')
-          .doc(ride.id)
-          .snapshots()
-          .listen((snapshot) {
-        final data = snapshot.data();
-        if (data == null || !mounted) return;
-        final nextStatus = data['status'] as String? ?? 'requested';
-        setState(() {
-          status = switch (nextStatus) {
-            'accepted' => 'DRIVER_ACCEPTED',
-            'arrived' => 'DRIVER_ARRIVED',
-            'started' => 'TRIP_STARTED',
-            'completed' => 'COMPLETED',
-            'cancelled' => 'CANCELLED',
-            _ => 'SEARCHING_DRIVER',
-          };
-        });
-
-        if (nextStatus == 'completed') {
-          Future.delayed(const Duration(seconds: 2), () {
-            if (!mounted || rideId != ride.id) return;
-            rideSubscription?.cancel();
-            rideSubscription = null;
-            destinationSearchController.clear();
-            setState(() {
-              rideId = null;
-              destination = null;
-              destinationAddress = '';
-              fare = 0;
-              distanceKm = 0;
-              status = 'Choose your destination';
-              suggestions = [];
-              searchError = null;
-            });
-            map?.animateCamera(CameraUpdate.newLatLngZoom(pickup, 15));
-          });
-        }
-      });
+      watchRide(ride.id);
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to request ride');
     }
