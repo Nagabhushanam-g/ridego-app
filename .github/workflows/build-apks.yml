@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - feature/p0-location-destination
 
 permissions:
   contents: read
@@ -48,6 +49,7 @@ jobs:
 
           flutter create --platforms=android .
           flutter pub get
+          flutter analyze
 
           printf '%s' "$FIREBASE_RIDER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
           test -s android/app/google-services.json
@@ -180,6 +182,7 @@ jobs:
 
           flutter create --platforms=android .
           flutter pub get
+          flutter analyze
 
           printf '%s' "$FIREBASE_DRIVER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
           test -s android/app/google-services.json
