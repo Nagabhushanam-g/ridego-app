@@ -56,6 +56,10 @@ class _RiderHomeState extends State<RiderHome> {
   LatLng pickup = const LatLng(17.3850, 78.4867);
   LatLng? destination;
   String destinationAddress = '';
+  String pickupAddress = '';
+  bool locationServiceEnabled = true;
+  StreamSubscription<ServiceStatus>? locationServiceSubscription;
+  Timer? destinationDebounce;
   String vehicle = 'Bike';
   String status = 'Choose your destination';
   int fare = 0;
@@ -80,6 +84,7 @@ class _RiderHomeState extends State<RiderHome> {
   void initState() {
     super.initState();
     _monitorConnectivity();
+    _monitorLocationService();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await RideGoNotificationService.initialize(context, role: 'rider');
       await restoreActiveRide();
@@ -90,6 +95,8 @@ class _RiderHomeState extends State<RiderHome> {
   @override
   void dispose() {
     connectivitySubscription?.cancel();
+    locationServiceSubscription?.cancel();
+    destinationDebounce?.cancel();
     rideSubscription?.cancel();
     destinationSearchController.dispose();
     super.dispose();
@@ -117,11 +124,51 @@ class _RiderHomeState extends State<RiderHome> {
     connectivitySubscription = connectivity.onConnectivityChanged.listen(apply);
   }
 
+  void _monitorLocationService() {
+    locationServiceSubscription =
+        Geolocator.getServiceStatusStream().listen((serviceStatus) {
+      final enabled = serviceStatus == ServiceStatus.enabled;
+      if (!mounted) return;
+      setState(() {
+        locationServiceEnabled = enabled;
+        if (!enabled) {
+          locationReady = false;
+          if (!rideActive) status = 'Location is turned off';
+        }
+      });
+      if (enabled && !rideActive) locate();
+    });
+  }
+
+  Future<String> _reverseGeocode(LatLng point) async {
+    if (googleMapsApiKey.isEmpty || noInternet) return '';
+    try {
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'latlng': '${point.latitude},${point.longitude}',
+        'key': googleMapsApiKey,
+        'language': 'en',
+      });
+      final response = await http.get(uri);
+      if (response.statusCode != 200) return '';
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? const [];
+      if (results.isEmpty) return '';
+      return (results.first['formatted_address'] ?? '').toString();
+    } catch (_) {
+      return '';
+    }
+  }
+
   Future<void> locate() async {
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        if (mounted && !rideActive) {
-          setState(() => status = 'Turn on Location to continue');
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        if (mounted) {
+          setState(() {
+            locationServiceEnabled = false;
+            locationReady = false;
+            if (!rideActive) status = 'Location is turned off';
+          });
         }
         return;
       }
@@ -134,20 +181,24 @@ class _RiderHomeState extends State<RiderHome> {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         if (mounted && !rideActive) {
-          setState(() => status = 'Location permission is required');
+          setState(() {
+            locationReady = false;
+            status = 'Location permission is required';
+          });
         }
         return;
       }
 
       final position = await Geolocator.getCurrentPosition();
       final current = LatLng(position.latitude, position.longitude);
+      final address = await _reverseGeocode(current);
 
       if (!mounted) return;
       setState(() {
-        // Location refresh must not overwrite a restored active-ride state
-        // such as DRIVER_ACCEPTED, DRIVER_ARRIVED, or TRIP_STARTED.
+        locationServiceEnabled = true;
         if (!rideActive) {
           pickup = current;
+          pickupAddress = address;
           status = 'Choose your destination';
         }
         locationReady = true;
@@ -156,7 +207,10 @@ class _RiderHomeState extends State<RiderHome> {
       map?.animateCamera(CameraUpdate.newLatLngZoom(current, 15));
     } catch (_) {
       if (mounted && !rideActive) {
-        setState(() => status = 'Unable to get current location');
+        setState(() {
+          locationReady = false;
+          status = 'Unable to get current location';
+        });
       }
     }
   }
@@ -642,6 +696,48 @@ class _RiderHomeState extends State<RiderHome> {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    if (!rideActive) ...[
+                      Material(
+                        elevation: 2,
+                        borderRadius: BorderRadius.circular(14),
+                        color: Colors.white,
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(
+                            locationServiceEnabled
+                                ? Icons.my_location
+                                : Icons.location_off,
+                          ),
+                          title: Text(
+                            locationServiceEnabled
+                                ? (pickupAddress.isEmpty
+                                    ? 'Current pickup location'
+                                    : pickupAddress)
+                                : 'Location is turned off',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            locationServiceEnabled
+                                ? 'Pickup'
+                                : 'Turn on location or choose pickup on the map',
+                          ),
+                          trailing: TextButton(
+                            onPressed: () async {
+                              if (!locationServiceEnabled) {
+                                await Geolocator.openLocationSettings();
+                              } else {
+                                await locate();
+                              }
+                            },
+                            child: Text(
+                              locationServiceEnabled ? 'CHANGE' : 'TURN ON',
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Material(
                       elevation: 4,
                       borderRadius: BorderRadius.circular(16),
@@ -652,12 +748,19 @@ class _RiderHomeState extends State<RiderHome> {
                         enabled: !rideActive,
                         onSubmitted: searchDestinations,
                         onChanged: (value) {
-                          if (value.trim().length < 2) {
+                          destinationDebounce?.cancel();
+                          final query = value.trim();
+                          if (query.length < 2) {
                             setState(() {
                               suggestions = [];
                               searchError = null;
                             });
+                            return;
                           }
+                          destinationDebounce =
+                              Timer(const Duration(milliseconds: 350), () {
+                            searchDestinations(query);
+                          });
                         },
                         decoration: InputDecoration(
                           hintText: 'Search destination',
