@@ -149,7 +149,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                 decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_outlined), border: OutlineInputBorder())),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
-              value: vehicleType,
+              initialValue: vehicleType,
               decoration: const InputDecoration(labelText: 'Vehicle type', border: OutlineInputBorder()),
               items: const ['Bike', 'Auto', 'Cab']
                   .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
