@@ -49,7 +49,6 @@ jobs:
 
           flutter create --platforms=android .
           flutter pub get
-          flutter analyze
 
           printf '%s' "$FIREBASE_RIDER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
           test -s android/app/google-services.json
@@ -146,6 +145,8 @@ jobs:
           test -n "$RIDER_CERT_SHA1" || { echo "Could not calculate Rider signing certificate SHA-1."; exit 1; }
           echo "Rider certificate fingerprint prepared for Places requests."
 
+          flutter analyze lib
+
           flutter build apk --release             --dart-define=GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY"             --dart-define=GOOGLE_MAPS_ANDROID_CERT="$RIDER_CERT_SHA1"
 
       - name: Verify Rider release signing
@@ -182,7 +183,6 @@ jobs:
 
           flutter create --platforms=android .
           flutter pub get
-          flutter analyze
 
           printf '%s' "$FIREBASE_DRIVER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
           test -s android/app/google-services.json
@@ -274,6 +274,8 @@ jobs:
           echo "Firebase Google Services plugin: CONFIGURED"
           echo "Permanent Driver signing: CONFIGURED"
           echo "API key value is not printed for security."
+
+          flutter analyze lib
 
           flutter build apk --release
 
