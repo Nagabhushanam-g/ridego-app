@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - ridego-p0-hardening
 
 permissions:
   contents: read
