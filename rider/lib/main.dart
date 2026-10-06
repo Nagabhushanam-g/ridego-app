@@ -280,7 +280,22 @@ class _RiderHomeState extends State<RiderHome> {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Places search failed (\${response.statusCode})');
+        String message = 'Destination search is temporarily unavailable';
+        try {
+          final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+          final error = errorData['error'] as Map<String, dynamic>?;
+          final apiMessage = error?['message']?.toString();
+          if (apiMessage != null && apiMessage.isNotEmpty) {
+            message = apiMessage;
+          }
+        } catch (_) {}
+        if (!mounted) return;
+        setState(() {
+          searching = false;
+          suggestions = [];
+          searchError = message;
+        });
+        return;
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
