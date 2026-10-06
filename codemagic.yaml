@@ -5,27 +5,32 @@ workflows:
     instance_type: linux_x2
     environment:
       flutter: stable
+      vars:
+        GOOGLE_MAPS_API_KEY: $GOOGLE_MAPS_API_KEY
+        GOOGLE_MAPS_ANDROID_CERT: $GOOGLE_MAPS_ANDROID_CERT
     scripts:
-      - name: Extract RideGo source
+      - name: Prepare Rider
         script: |
-          rm -rf ridego_final_packaging
-          unzip -q ridego_final_rider_driver_package.zip
-      - name: Generate Android projects
+          cd rider
+          flutter pub get
+          flutter analyze
+      - name: Prepare Driver
         script: |
-          cd ridego_final_packaging/rider
-          flutter create --platforms=android .
-          cd ../driver
-          flutter create --platforms=android .
+          cd driver
+          flutter pub get
+          flutter analyze
       - name: Build Rider APK
         script: |
-          cd ridego_final_packaging/rider
-          flutter pub get
-          flutter build apk --release
+          cd rider
+          flutter build apk --release \
+            --dart-define=GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY" \
+            --dart-define=GOOGLE_MAPS_ANDROID_CERT="$GOOGLE_MAPS_ANDROID_CERT"
       - name: Build Driver APK
         script: |
-          cd ridego_final_packaging/driver
-          flutter pub get
-          flutter build apk --release
+          cd driver
+          flutter build apk --release \
+            --dart-define=GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY" \
+            --dart-define=GOOGLE_MAPS_ANDROID_CERT="$GOOGLE_MAPS_ANDROID_CERT"
     artifacts:
-      - ridego_final_packaging/rider/build/app/outputs/flutter-apk/*.apk
-      - ridego_final_packaging/driver/build/app/outputs/flutter-apk/*.apk
+      - rider/build/app/outputs/flutter-apk/*.apk
+      - driver/build/app/outputs/flutter-apk/*.apk
