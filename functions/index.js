@@ -1,4 +1,5 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
@@ -60,4 +61,33 @@ exports.notifyRideStatusChange = onDocumentUpdated({
     event.params.rideId,
     status,
   );
+});
+
+
+/**
+ * Backend-authoritative cleanup for ride requests that never get a driver.
+ * The rider UI also has a local timer for fast feedback, but this scheduled
+ * job is the source-of-truth safety net when the app is killed/offline.
+ */
+exports.expireUnmatchedRideRequests = onSchedule({
+  schedule: 'every 1 minutes',
+  timeZone: 'UTC',
+}, async () => {
+  const cutoff = new Date(Date.now() - (3 * 60 * 1000));
+  const stale = await db.collection('rideRequests')
+    .where('status', '==', 'requested')
+    .where('createdAt', '<=', cutoff)
+    .get();
+
+  if (stale.empty) return;
+
+  const writer = db.bulkWriter();
+  stale.docs.forEach((doc) => {
+    writer.update(doc.ref, {
+      status: 'cancelled',
+      cancelReason: 'no_driver_available',
+      cancelledAt: new Date(),
+    });
+  });
+  await writer.close();
 });
