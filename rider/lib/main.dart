@@ -12,6 +12,7 @@ import 'auth.dart';
 import 'history.dart';
 import 'notification_service.dart';
 import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 const String androidCertSha1 = String.fromEnvironment('GOOGLE_MAPS_ANDROID_CERT');
@@ -64,6 +65,8 @@ class _RiderHomeState extends State<RiderHome> {
   bool selectingPlace = false;
   bool get rideActive => rideId != null;
   String? searchError;
+  bool noInternet = false;
+  StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   final TextEditingController destinationSearchController =
       TextEditingController();
@@ -76,6 +79,7 @@ class _RiderHomeState extends State<RiderHome> {
   @override
   void initState() {
     super.initState();
+    _monitorConnectivity();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await RideGoNotificationService.initialize(context, role: 'rider');
       await restoreActiveRide();
@@ -85,9 +89,32 @@ class _RiderHomeState extends State<RiderHome> {
 
   @override
   void dispose() {
+    connectivitySubscription?.cancel();
     rideSubscription?.cancel();
     destinationSearchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _monitorConnectivity() async {
+    final connectivity = Connectivity();
+
+    void apply(List<ConnectivityResult> results) {
+      final disconnected =
+          results.isEmpty || results.every((r) => r == ConnectivityResult.none);
+      if (!mounted || disconnected == noInternet) return;
+
+      final wasOffline = noInternet;
+      setState(() => noInternet = disconnected);
+
+      if (wasOffline && !disconnected) {
+        // Firestore is authoritative after a reconnect. Rehydrate instead of
+        // trusting UI state that may have been displayed while disconnected.
+        restoreActiveRide();
+      }
+    }
+
+    apply(await connectivity.checkConnectivity());
+    connectivitySubscription = connectivity.onConnectivityChanged.listen(apply);
   }
 
   Future<void> locate() async {
@@ -135,6 +162,10 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   Future<void> searchDestinations(String value) async {
+    if (noInternet) {
+      if (mounted) setState(() => searchError = 'No internet connection');
+      return;
+    }
     final query = value.trim();
     if (query.length < 2) {
       if (mounted) {
@@ -237,6 +268,10 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   Future<void> selectPlace(_PlaceSuggestion suggestion) async {
+    if (noInternet) {
+      if (mounted) setState(() => searchError = 'No internet connection');
+      return;
+    }
     if (googleMapsApiKey.isEmpty) return;
 
     setState(() {
@@ -471,6 +506,14 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   Future<void> cancelRide() async {
+    if (noInternet) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection')),
+        );
+      }
+      return;
+    }
     final id = rideId;
     if (id == null || status != 'SEARCHING_DRIVER') return;
 
@@ -491,6 +534,14 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   Future<void> book() async {
+    if (noInternet) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection')),
+        );
+      }
+      return;
+    }
     if (destination == null || fare <= 0) return;
 
     try {
@@ -688,6 +739,43 @@ class _RiderHomeState extends State<RiderHome> {
                 ),
               ),
             ),
+            if (noInternet)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 76,
+                left: 16,
+                right: 16,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.wifi_off),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'No internet connection',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: 0,
               right: 0,
@@ -778,7 +866,7 @@ class _RiderHomeState extends State<RiderHome> {
                       width: double.infinity,
                       height: 50,
                       child: FilledButton(
-                        onPressed: destination == null || rideActive ? null : book,
+                        onPressed: destination == null || rideActive || noInternet ? null : book,
                         child: Text(rideActive ? 'RIDE IN PROGRESS' : 'BOOK RIDE'),
                       ),
                     ),
@@ -788,7 +876,7 @@ class _RiderHomeState extends State<RiderHome> {
                         width: double.infinity,
                         height: 46,
                         child: OutlinedButton(
-                          onPressed: cancelRide,
+                          onPressed: noInternet ? null : cancelRide,
                           child: const Text('CANCEL RIDE'),
                         ),
                       ),
