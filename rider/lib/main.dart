@@ -67,6 +67,11 @@ class _RiderHomeState extends State<RiderHome> {
   String? searchError;
   bool noInternet = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
+  StreamSubscription<ServiceStatus>? locationServiceSubscription;
+  Timer? destinationSearchDebounce;
+  Timer? noDriverTimer;
+  String pickupAddress = '';
+  bool locationServiceEnabled = true;
 
   final TextEditingController destinationSearchController =
       TextEditingController();
@@ -80,6 +85,7 @@ class _RiderHomeState extends State<RiderHome> {
   void initState() {
     super.initState();
     _monitorConnectivity();
+    _monitorLocationService();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await RideGoNotificationService.initialize(context, role: 'rider');
       await restoreActiveRide();
@@ -90,6 +96,9 @@ class _RiderHomeState extends State<RiderHome> {
   @override
   void dispose() {
     connectivitySubscription?.cancel();
+    locationServiceSubscription?.cancel();
+    destinationSearchDebounce?.cancel();
+    noDriverTimer?.cancel();
     rideSubscription?.cancel();
     destinationSearchController.dispose();
     super.dispose();
@@ -117,11 +126,102 @@ class _RiderHomeState extends State<RiderHome> {
     connectivitySubscription = connectivity.onConnectivityChanged.listen(apply);
   }
 
+  void _monitorLocationService() {
+    locationServiceSubscription =
+        Geolocator.getServiceStatusStream().listen((serviceStatus) {
+      final enabled = serviceStatus == ServiceStatus.enabled;
+      if (!mounted) return;
+      setState(() {
+        locationServiceEnabled = enabled;
+        if (!enabled && !rideActive) {
+          locationReady = false;
+          status = 'Location is turned off';
+        }
+      });
+      if (enabled) locate();
+    });
+  }
+
+  void _queueDestinationSearch(String value) {
+    destinationSearchDebounce?.cancel();
+    final query = value.trim();
+    if (query.length < 2) {
+      if (mounted) {
+        setState(() {
+          suggestions = [];
+          searchError = null;
+        });
+      }
+      return;
+    }
+    destinationSearchDebounce = Timer(
+      const Duration(milliseconds: 450),
+      () => searchDestinations(query),
+    );
+  }
+
+  Future<void> _reverseGeocodePickup(LatLng point) async {
+    if (googleMapsApiKey.isEmpty || noInternet) return;
+    try {
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'latlng': '${point.latitude},${point.longitude}',
+        'key': googleMapsApiKey,
+        'language': 'en',
+      });
+      final response = await http.get(uri);
+      if (response.statusCode != 200) return;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? const [];
+      if (results.isEmpty || !mounted) return;
+      final first = results.first as Map<String, dynamic>;
+      final address = first['formatted_address'] as String?;
+      if (address != null && address.isNotEmpty) {
+        setState(() => pickupAddress = address);
+      }
+    } catch (_) {
+      // Coordinates remain usable when reverse geocoding is unavailable.
+    }
+  }
+
+  void _startNoDriverTimeout(String id) {
+    noDriverTimer?.cancel();
+    noDriverTimer = Timer(const Duration(minutes: 3), () async {
+      if (!mounted || rideId != id || status != 'SEARCHING_DRIVER') return;
+      try {
+        await rideGoFirestore.runTransaction((transaction) async {
+          final ref = rideGoFirestore.collection('rideRequests').doc(id);
+          final snapshot = await transaction.get(ref);
+          final data = snapshot.data();
+          if (data != null && data['status'] == 'requested') {
+            transaction.update(ref, {
+              'status': 'cancelled',
+              'cancelReason': 'no_driver_available',
+              'cancelledAt': FieldValue.serverTimestamp(),
+            });
+          }
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No drivers available nearby. Please try again.'),
+            ),
+          );
+        }
+      } catch (_) {
+        // Ride listener/reconciliation remains authoritative.
+      }
+    });
+  }
+
   Future<void> locate() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         if (mounted && !rideActive) {
-          setState(() => status = 'Turn on Location to continue');
+          setState(() {
+            locationServiceEnabled = false;
+            locationReady = false;
+            status = 'Location is turned off';
+          });
         }
         return;
       }
@@ -153,6 +253,8 @@ class _RiderHomeState extends State<RiderHome> {
         locationReady = true;
       });
 
+      locationServiceEnabled = true;
+      await _reverseGeocodePickup(current);
       map?.animateCamera(CameraUpdate.newLatLngZoom(current, 15));
     } catch (_) {
       if (mounted && !rideActive) {
@@ -483,6 +585,8 @@ class _RiderHomeState extends State<RiderHome> {
       final nextStatus = (data['status'] ?? 'requested').toString();
       applyRideData(id, data);
 
+      if (nextStatus != 'requested') noDriverTimer?.cancel();
+
       if (nextStatus == 'completed' || nextStatus == 'cancelled') {
         Future.delayed(const Duration(seconds: 2), () {
           if (!mounted || rideId != id) return;
@@ -575,6 +679,7 @@ class _RiderHomeState extends State<RiderHome> {
       });
 
       watchRide(ride.id);
+      _startNoDriverTimeout(ride.id);
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to request ride');
     }
@@ -651,14 +756,7 @@ class _RiderHomeState extends State<RiderHome> {
                         textInputAction: TextInputAction.search,
                         enabled: !rideActive,
                         onSubmitted: searchDestinations,
-                        onChanged: (value) {
-                          if (value.trim().length < 2) {
-                            setState(() {
-                              suggestions = [];
-                              searchError = null;
-                            });
-                          }
-                        },
+                        onChanged: _queueDestinationSearch,
                         decoration: InputDecoration(
                           hintText: 'Search destination',
                           prefixIcon: const Icon(Icons.search),
@@ -717,6 +815,50 @@ class _RiderHomeState extends State<RiderHome> {
                               onTap: () => selectPlace(item),
                             );
                           },
+                        ),
+                      ),
+                    if (!locationServiceEnabled && !rideActive)
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_off),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text('Location is off. Turn it on or choose pickup manually.'),
+                            ),
+                            TextButton(
+                              onPressed: Geolocator.openLocationSettings,
+                              child: const Text('SETTINGS'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (pickupAddress.isNotEmpty && !rideActive)
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.my_location, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                pickupAddress,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     if (searchError != null)
