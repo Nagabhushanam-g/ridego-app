@@ -67,7 +67,7 @@ service cloud.firestore {
           resource.data.riderId == request.auth.uid
           && resource.data.status == 'requested'
           && request.resource.data.status == 'cancelled'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'cancelReason'])
         )
         ||
         (
