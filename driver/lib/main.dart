@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'auth.dart';
 import 'history.dart';
 import 'notification_service.dart';
@@ -55,10 +56,13 @@ class _DriverHomeState extends State<DriverHome> {
   String? rideId;
   StreamSubscription? rideSubscription;
   Map<String, dynamic>? pendingRide;
+  bool noInternet = false;
+  StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
+    _monitorConnectivity();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await ensureSignedIn();
       await RideGoNotificationService.initialize(context, role: 'driver');
@@ -69,8 +73,34 @@ class _DriverHomeState extends State<DriverHome> {
 
   @override
   void dispose() {
+    connectivitySubscription?.cancel();
     rideSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _monitorConnectivity() async {
+    final connectivity = Connectivity();
+
+    void apply(List<ConnectivityResult> results) {
+      final disconnected =
+          results.isEmpty || results.every((r) => r == ConnectivityResult.none);
+      if (!mounted || disconnected == noInternet) return;
+
+      final wasOffline = noInternet;
+      setState(() => noInternet = disconnected);
+
+      if (wasOffline && !disconnected) {
+        // Re-sync the assignment before returning to the waiting state.
+        restoreActiveRide().then((_) {
+          if (mounted && online && !hasAssignedRide) {
+            watchRideRequests();
+          }
+        });
+      }
+    }
+
+    apply(await connectivity.checkConnectivity());
+    connectivitySubscription = connectivity.onConnectivityChanged.listen(apply);
   }
 
   Future<void> ensureSignedIn() async {
@@ -219,6 +249,14 @@ class _DriverHomeState extends State<DriverHome> {
           status == 'TRIP_STARTED');
 
   Future<void> toggle() async {
+    if (noInternet) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection')),
+        );
+      }
+      return;
+    }
     if (online && hasAssignedRide) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -258,6 +296,14 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   Future<void> accept() async {
+    if (noInternet) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection')),
+        );
+      }
+      return;
+    }
     final id = rideId;
     if (id == null || driverUid == null) return;
     try {
@@ -293,6 +339,14 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   Future<void> next() async {
+    if (noInternet) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection')),
+        );
+      }
+      return;
+    }
     final id = rideId;
     if (id == null) return;
     final nextStatus = switch (status) {
@@ -382,6 +436,43 @@ class _DriverHomeState extends State<DriverHome> {
                 ),
               ),
             ),
+            if (noInternet)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 76,
+                left: 16,
+                right: 16,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.wifi_off),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'No internet connection — reconnecting…',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: 0,
               right: 0,
@@ -433,7 +524,7 @@ class _DriverHomeState extends State<DriverHome> {
                                 ' km',
                           ),
                           trailing: FilledButton(
-                            onPressed: accept,
+                            onPressed: noInternet ? null : accept,
                             child: const Text('ACCEPT'),
                           ),
                         ),
@@ -446,7 +537,7 @@ class _DriverHomeState extends State<DriverHome> {
                         width: double.infinity,
                         height: 50,
                         child: FilledButton(
-                          onPressed: next,
+                          onPressed: noInternet ? null : next,
                           child: Text(
                             status == 'DRIVER_ACCEPTED'
                                 ? 'DRIVER ARRIVED'
@@ -461,7 +552,7 @@ class _DriverHomeState extends State<DriverHome> {
                       width: double.infinity,
                       height: 50,
                       child: OutlinedButton(
-                        onPressed: toggle,
+                        onPressed: noInternet ? null : toggle,
                         child: Text(online ? 'GO OFFLINE' : 'GO ONLINE'),
                       ),
                     ),
