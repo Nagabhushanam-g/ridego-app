@@ -587,6 +587,15 @@ class _RiderHomeState extends State<RiderHome> {
 
       if (nextStatus != 'requested') noDriverTimer?.cancel();
 
+      if (nextStatus == 'cancelled' &&
+          data['cancelReason'] == 'no_driver_available') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No drivers available nearby. Try another ride option.'),
+          ),
+        );
+      }
+
       if (nextStatus == 'completed' || nextStatus == 'cancelled') {
         Future.delayed(const Duration(seconds: 2), () {
           if (!mounted || rideId != id) return;
