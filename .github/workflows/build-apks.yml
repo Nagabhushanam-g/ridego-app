@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - dev/base112-clean
 
 permissions:
   contents: read
