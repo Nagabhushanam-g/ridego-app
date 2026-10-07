@@ -74,6 +74,7 @@ class _RiderHomeState extends State<RiderHome> {
   List<_PlaceSuggestion> suggestions = [];
   String? riderUid;
   String? rideId;
+  String? ridePin;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
 
   @override
@@ -431,6 +432,7 @@ class _RiderHomeState extends State<RiderHome> {
       distanceKm = (data['distanceKm'] as num?)?.toDouble() ?? distanceKm;
       destinationAddress =
           (data['destinationAddress'] ?? destinationAddress).toString();
+      ridePin = data['ridePin']?.toString();
       if (pickupLat != null && pickupLng != null) {
         pickup = LatLng(pickupLat, pickupLng);
       }
@@ -491,6 +493,7 @@ class _RiderHomeState extends State<RiderHome> {
           destinationSearchController.clear();
           setState(() {
             rideId = null;
+            ridePin = null;
             destination = null;
             destinationAddress = '';
             fare = 0;
@@ -549,6 +552,7 @@ class _RiderHomeState extends State<RiderHome> {
       await ensureSignedIn();
       await rideSubscription?.cancel();
 
+      final generatedPin = (1000 + math.Random.secure().nextInt(9000)).toString();
       final ride = await rideGoFirestore.collection('rideRequests').add({
         'riderId': riderUid,
         'status': 'requested',
@@ -566,11 +570,14 @@ class _RiderHomeState extends State<RiderHome> {
         'destinationAddress': destinationAddress,
         'createdAt': FieldValue.serverTimestamp(),
         'driverId': null,
+        'ridePin': generatedPin,
+        'pinVerified': false,
       });
 
       if (!mounted) return;
       setState(() {
         rideId = ride.id;
+        ridePin = generatedPin;
         status = 'SEARCHING_DRIVER';
       });
 
@@ -837,6 +844,23 @@ class _RiderHomeState extends State<RiderHome> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(status),
+                              if ((status == 'DRIVER_ACCEPTED' ||
+                                      status == 'DRIVER_ARRIVED') &&
+                                  ridePin != null) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Start PIN: $ridePin',
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 4,
+                                  ),
+                                ),
+                                Text(
+                                  'Tell this PIN to your driver only after they arrive.',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
                               if (destinationAddress.isNotEmpty)
                                 Text(
                                   destinationAddress,
