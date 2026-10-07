@@ -324,7 +324,7 @@ class _RiderHomeState extends State<RiderHome> {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': googleMapsApiKey,
           if (androidCertSha1.isNotEmpty)
-            'X-Android-Package': 'com.example.ridego_rider',
+            'X-Android-Package': 'com.ridego.rider',
           if (androidCertSha1.isNotEmpty)
             'X-Android-Cert': androidCertSha1,
         },
