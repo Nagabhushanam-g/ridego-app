@@ -56,6 +56,7 @@ class _RiderHomeState extends State<RiderHome> {
   LatLng pickup = const LatLng(17.3850, 78.4867);
   LatLng? destination;
   String destinationAddress = '';
+  String pickupAddress = 'Getting current location...';
   String vehicle = 'Bike';
   String status = 'Choose your destination';
   int fare = 0;
@@ -118,6 +119,24 @@ class _RiderHomeState extends State<RiderHome> {
     connectivitySubscription = connectivity.onConnectivityChanged.listen(apply);
   }
 
+  Future<String> _reverseGeocode(LatLng point) async {
+    if (googleMapsApiKey.isEmpty) return 'Current location';
+    try {
+      final uri = Uri.parse(
+        'https://maps.googleapis.com/maps/api/geocode/json?latlng=${point.latitude},${point.longitude}&key=$googleMapsApiKey',
+      );
+      final response = await http.get(uri);
+      if (response.statusCode != 200) return 'Current location';
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? [];
+      if (results.isEmpty) return 'Current location';
+      final address = (results.first as Map<String, dynamic>)['formatted_address']?.toString();
+      return address == null || address.isEmpty ? 'Current location' : address;
+    } catch (_) {
+      return 'Current location';
+    }
+  }
+
   Future<void> locate() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
@@ -143,8 +162,10 @@ class _RiderHomeState extends State<RiderHome> {
       final position = await Geolocator.getCurrentPosition();
       final current = LatLng(position.latitude, position.longitude);
 
+      final address = await _reverseGeocode(current);
       if (!mounted) return;
       setState(() {
+        pickupAddress = address;
         // Location refresh must not overwrite a restored active-ride state
         // such as DRIVER_ACCEPTED, DRIVER_ARRIVED, or TRIP_STARTED.
         if (!rideActive) {
@@ -653,6 +674,39 @@ class _RiderHomeState extends State<RiderHome> {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    Material(
+                      elevation: 3,
+                      borderRadius: BorderRadius.circular(14),
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.my_location, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Current location',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    pickupAddress,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Material(
                       elevation: 4,
                       borderRadius: BorderRadius.circular(16),
