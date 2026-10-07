@@ -66,7 +66,10 @@ class _RiderHomeState extends State<RiderHome> {
   bool get rideActive => rideId != null;
   String? searchError;
   bool noInternet = false;
+  bool locationServiceEnabled = true;
+  bool selectingPickup = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
+  StreamSubscription<ServiceStatus>? locationServiceSubscription;
 
   final TextEditingController destinationSearchController =
       TextEditingController();
@@ -80,6 +83,7 @@ class _RiderHomeState extends State<RiderHome> {
   void initState() {
     super.initState();
     _monitorConnectivity();
+    _monitorLocationService();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await RideGoNotificationService.initialize(context, role: 'rider');
       await restoreActiveRide();
@@ -90,6 +94,7 @@ class _RiderHomeState extends State<RiderHome> {
   @override
   void dispose() {
     connectivitySubscription?.cancel();
+    locationServiceSubscription?.cancel();
     rideSubscription?.cancel();
     destinationSearchController.dispose();
     super.dispose();
@@ -117,14 +122,57 @@ class _RiderHomeState extends State<RiderHome> {
     connectivitySubscription = connectivity.onConnectivityChanged.listen(apply);
   }
 
+  Future<void> _monitorLocationService() async {
+    locationServiceEnabled = await Geolocator.isLocationServiceEnabled();
+    locationServiceSubscription =
+        Geolocator.getServiceStatusStream().listen((serviceStatus) {
+      final enabled = serviceStatus == ServiceStatus.enabled;
+      if (!mounted) return;
+      setState(() {
+        locationServiceEnabled = enabled;
+        if (!enabled && !rideActive) {
+          locationReady = false;
+          status = 'Location is turned off';
+        }
+      });
+      if (enabled && !rideActive) {
+        locate();
+      }
+    });
+  }
+
+  void _beginPickupSelection() {
+    if (rideActive) return;
+    setState(() {
+      selectingPickup = true;
+      status = 'Tap the map to choose pickup';
+    });
+  }
+
+  void _selectPickup(LatLng point) {
+    setState(() {
+      pickup = point;
+      selectingPickup = false;
+      locationReady = false;
+      status = 'Pickup selected';
+    });
+    recalculateFare();
+    map?.animateCamera(CameraUpdate.newLatLngZoom(point, 15));
+  }
+
   Future<void> locate() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         if (mounted && !rideActive) {
-          setState(() => status = 'Turn on Location to continue');
+          setState(() {
+            locationServiceEnabled = false;
+            locationReady = false;
+            status = 'Location is turned off';
+          });
         }
         return;
       }
+      if (mounted) setState(() => locationServiceEnabled = true);
 
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -589,7 +637,11 @@ class _RiderHomeState extends State<RiderHome> {
               myLocationEnabled: locationReady,
               myLocationButtonEnabled: false,
               onMapCreated: (controller) => map = controller,
-              onTap: rideActive ? null : (point) => selectDestination(point),
+              onTap: rideActive
+                  ? null
+                  : (point) => selectingPickup
+                      ? _selectPickup(point)
+                      : selectDestination(point),
               markers: {
                 Marker(markerId: const MarkerId('pickup'), position: pickup),
                 if (destination != null)
@@ -739,6 +791,30 @@ class _RiderHomeState extends State<RiderHome> {
                 ),
               ),
             ),
+            if (!locationServiceEnabled && !rideActive)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 132,
+                left: 16,
+                right: 16,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_off),
+                        const SizedBox(width: 10),
+                        const Expanded(child: Text('Location is turned off')),
+                        TextButton(
+                          onPressed: Geolocator.openLocationSettings,
+                          child: const Text('TURN ON'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             if (noInternet)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 76,
@@ -791,6 +867,25 @@ class _RiderHomeState extends State<RiderHome> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (!rideActive) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.my_location, size: 20),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Pickup location',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: selectingPickup ? null : _beginPickupSelection,
+                            child: Text(selectingPickup ? 'SELECTING' : 'CHANGE'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
