@@ -516,6 +516,7 @@ class _RiderHomeState extends State<RiderHome> {
         'started' => 'TRIP_STARTED',
         'completed' => 'COMPLETED',
         'cancelled' => 'CANCELLED',
+        'expired' => 'NO_DRIVERS_AVAILABLE',
         _ => 'SEARCHING_DRIVER',
       };
 
@@ -589,7 +590,13 @@ class _RiderHomeState extends State<RiderHome> {
       final nextStatus = (data['status'] ?? 'requested').toString();
       applyRideData(id, data);
 
-      if (nextStatus == 'completed' || nextStatus == 'cancelled') {
+      if (nextStatus == 'expired') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No drivers available nearby. Please try again or choose another vehicle.')),
+        );
+      }
+
+      if (nextStatus == 'completed' || nextStatus == 'cancelled' || nextStatus == 'expired') {
         Future.delayed(const Duration(seconds: 2), () {
           if (!mounted || rideId != id) return;
           rideSubscription?.cancel();
