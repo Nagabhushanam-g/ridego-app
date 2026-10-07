@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -17,6 +18,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 const String androidCertSha1 = String.fromEnvironment('GOOGLE_MAPS_ANDROID_CERT');
 const String rideGoFirestoreDatabaseId = 'firestore-db-2';
+const MethodChannel riderLocationChannel = MethodChannel('com.ridego.rider/location');
 
 FirebaseFirestore get rideGoFirestore => FirebaseFirestore.instanceFor(
       app: Firebase.app(),
@@ -143,6 +145,28 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   Future<void> _resolvePickupAddress(LatLng point) async {
+    // Prefer Android's native Geocoder. It does not depend on the Maps API
+    // key's web-service restrictions and keeps a working map configuration
+    // independent from pickup-address lookup.
+    try {
+      final address = await riderLocationChannel.invokeMethod<String>(
+        'reverseGeocode',
+        {
+          'latitude': point.latitude,
+          'longitude': point.longitude,
+        },
+      );
+      if (mounted && address != null && address.trim().isNotEmpty) {
+        setState(() => pickupAddress = address.trim());
+        return;
+      }
+    } on PlatformException {
+      // Fall through to the Google Geocoding API when native lookup is
+      // unavailable on a particular Android device.
+    } on MissingPluginException {
+      // Fall through for safety on unsupported builds.
+    }
+
     if (googleMapsApiKey.isEmpty || noInternet) return;
     try {
       final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
@@ -292,7 +316,7 @@ class _RiderHomeState extends State<RiderHome> {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': googleMapsApiKey,
           if (androidCertSha1.isNotEmpty)
-            'X-Android-Package': 'com.example.ridego_rider',
+            'X-Android-Package': 'com.ridego.rider',
           if (androidCertSha1.isNotEmpty)
             'X-Android-Cert': androidCertSha1,
         },
@@ -366,7 +390,7 @@ class _RiderHomeState extends State<RiderHome> {
           'X-Goog-Api-Key': googleMapsApiKey,
           'X-Goog-FieldMask': 'location,formattedAddress,displayName',
           if (androidCertSha1.isNotEmpty)
-            'X-Android-Package': 'com.example.ridego_rider',
+            'X-Android-Package': 'com.ridego.rider',
           if (androidCertSha1.isNotEmpty)
             'X-Android-Cert': androidCertSha1,
         },
