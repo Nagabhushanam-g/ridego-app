@@ -350,7 +350,13 @@ class _RiderHomeState extends State<RiderHome> {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Places search failed (\${response.statusCode})');
+        if (!mounted || generation != destinationSearchGeneration) return;
+        setState(() {
+          searching = false;
+          suggestions = [];
+          searchError = 'Destination search error (HTTP ${response.statusCode})';
+        });
+        return;
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -423,7 +429,12 @@ class _RiderHomeState extends State<RiderHome> {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Place details failed (\${response.statusCode})');
+        if (!mounted) return;
+        setState(() {
+          selectingPlace = false;
+          searchError = 'Destination details error (HTTP ${response.statusCode})';
+        });
+        return;
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
