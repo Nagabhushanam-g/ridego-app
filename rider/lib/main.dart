@@ -73,6 +73,8 @@ class _RiderHomeState extends State<RiderHome> {
   bool selectingPickup = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
   StreamSubscription<ServiceStatus>? locationServiceSubscription;
+  Timer? destinationSearchDebounce;
+  int destinationSearchGeneration = 0;
 
   final TextEditingController destinationSearchController =
       TextEditingController();
@@ -99,6 +101,7 @@ class _RiderHomeState extends State<RiderHome> {
     connectivitySubscription?.cancel();
     locationServiceSubscription?.cancel();
     rideSubscription?.cancel();
+    destinationSearchDebounce?.cancel();
     destinationSearchController.dispose();
     super.dispose();
   }
@@ -259,7 +262,30 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
+  void _onDestinationChanged(String value) {
+    destinationSearchDebounce?.cancel();
+    final query = value.trim();
+
+    if (query.length < 2) {
+      destinationSearchGeneration++;
+      if (mounted) {
+        setState(() {
+          suggestions = [];
+          searchError = null;
+          searching = false;
+        });
+      }
+      return;
+    }
+
+    destinationSearchDebounce = Timer(
+      const Duration(milliseconds: 350),
+      () => searchDestinations(query),
+    );
+  }
+
   Future<void> searchDestinations(String value) async {
+    final generation = ++destinationSearchGeneration;
     if (noInternet) {
       if (mounted) setState(() => searchError = 'No internet connection');
       return;
@@ -349,14 +375,14 @@ class _RiderHomeState extends State<RiderHome> {
           .whereType<_PlaceSuggestion>()
           .toList();
 
-      if (!mounted) return;
+      if (!mounted || generation != destinationSearchGeneration) return;
       setState(() {
         suggestions = parsed;
         searching = false;
         searchError = parsed.isEmpty ? 'No destinations found' : null;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != destinationSearchGeneration) return;
       setState(() {
         searching = false;
         suggestions = [];
@@ -752,15 +778,11 @@ class _RiderHomeState extends State<RiderHome> {
                         controller: destinationSearchController,
                         textInputAction: TextInputAction.search,
                         enabled: !rideActive,
-                        onSubmitted: searchDestinations,
-                        onChanged: (value) {
-                          if (value.trim().length < 2) {
-                            setState(() {
-                              suggestions = [];
-                              searchError = null;
-                            });
-                          }
+                        onSubmitted: (value) {
+                          destinationSearchDebounce?.cancel();
+                          searchDestinations(value);
                         },
+                        onChanged: _onDestinationChanged,
                         decoration: InputDecoration(
                           hintText: 'Search destination',
                           prefixIcon: const Icon(Icons.search),
