@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 const String _rideGoFirestoreDatabaseId = 'firestore-db-2';
 
@@ -81,6 +83,10 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   final name = TextEditingController();
   final phone = TextEditingController();
   final vehicleNumber = TextEditingController();
+  final drivingLicense = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+  XFile? rcFront;
+  XFile? rcBack;
   String vehicleType = 'Bike';
   bool saving = false;
   String? error;
@@ -90,7 +96,30 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     name.dispose();
     phone.dispose();
     vehicleNumber.dispose();
+    drivingLicense.dispose();
     super.dispose();
+  }
+
+  Future<void> pickRc(bool front) async {
+    final image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (image == null || !mounted) return;
+    setState(() {
+      if (front) {
+        rcFront = image;
+      } else {
+        rcBack = image;
+      }
+      error = null;
+    });
+  }
+
+  Future<String> uploadRc(String uid, XFile file, String side) async {
+    final ref = FirebaseStorage.instance.ref('driver_documents/$uid/rc_$side.jpg');
+    await ref.putData(await file.readAsBytes(), SettableMetadata(contentType: 'image/jpeg'));
+    return ref.getDownloadURL();
   }
 
   Future<void> save() async {
@@ -98,9 +127,16 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     final fullName = name.text.trim();
     final mobile = phone.text.trim();
     final number = vehicleNumber.text.trim().toUpperCase();
+    final license = drivingLicense.text.trim().toUpperCase();
     if (user == null) return;
-    if (fullName.length < 2 || mobile.length < 10 || number.length < 4) {
-      setState(() => error = 'Enter your name, valid mobile number, and vehicle number.');
+    if (fullName.length < 2 ||
+        mobile.length < 10 ||
+        number.length < 4 ||
+        license.length < 5 ||
+        rcFront == null ||
+        rcBack == null) {
+      setState(() => error =
+          'Enter all details, driving license number, and upload RC front and back copies.');
       return;
     }
 
@@ -110,6 +146,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     });
 
     try {
+      final rcFrontUrl = await uploadRc(user.uid, rcFront!, 'front');
+      final rcBackUrl = await uploadRc(user.uid, rcBack!, 'back');
       await _profilesDb.collection('profiles').doc(user.uid).set({
         'uid': user.uid,
         'role': 'driver',
@@ -118,6 +156,10 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         'email': user.email,
         'vehicleType': vehicleType,
         'vehicleNumber': number,
+        'drivingLicense': license,
+        'rcFrontUrl': rcFrontUrl,
+        'rcBackUrl': rcBackUrl,
+        'documentsSubmittedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       if (mounted) widget.onSaved();
@@ -158,6 +200,28 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             const SizedBox(height: 14),
             TextField(controller: vehicleNumber, textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(labelText: 'Vehicle number', prefixIcon: Icon(Icons.confirmation_number_outlined), border: OutlineInputBorder())),
+            const SizedBox(height: 14),
+            TextField(
+              controller: drivingLicense,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Driving license number',
+                prefixIcon: Icon(Icons.badge_outlined),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: saving ? null : () => pickRc(true),
+              icon: Icon(rcFront == null ? Icons.upload_file : Icons.check_circle),
+              label: Text(rcFront == null ? 'Upload RC front copy' : 'RC front selected'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: saving ? null : () => pickRc(false),
+              icon: Icon(rcBack == null ? Icons.upload_file : Icons.check_circle),
+              label: Text(rcBack == null ? 'Upload RC back copy' : 'RC back selected'),
+            ),
             const SizedBox(height: 14),
             Text('Email: $email'),
             if (error != null) ...[
