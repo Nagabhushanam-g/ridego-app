@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -144,25 +143,25 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   Future<void> _resolvePickupAddress(LatLng point) async {
+    if (googleMapsApiKey.isEmpty || noInternet) return;
     try {
-      final places = await placemarkFromCoordinates(
-        point.latitude,
-        point.longitude,
-      );
-      if (!mounted || places.isEmpty) return;
-      final place = places.first;
-      final parts = <String>[
-        place.name ?? '',
-        place.street ?? '',
-        place.subLocality ?? '',
-        place.locality ?? '',
-      ].where((part) => part.trim().isNotEmpty).toList();
-      final label = parts.toSet().join(', ');
-      if (label.isNotEmpty) {
-        setState(() => pickupAddress = label);
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'latlng': '${point.latitude},${point.longitude}',
+        'key': googleMapsApiKey,
+        'language': 'en',
+      });
+      final response = await http.get(uri);
+      if (response.statusCode != 200) return;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? const [];
+      if (!mounted || results.isEmpty) return;
+      final address =
+          (results.first as Map<String, dynamic>)['formatted_address'] as String?;
+      if (address != null && address.trim().isNotEmpty) {
+        setState(() => pickupAddress = address.trim());
       }
     } catch (_) {
-      // Coordinates remain usable even when the device geocoder is unavailable.
+      // Coordinates remain usable even when reverse geocoding is unavailable.
     }
   }
 
