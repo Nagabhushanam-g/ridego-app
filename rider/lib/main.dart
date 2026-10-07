@@ -66,6 +66,8 @@ class _RiderHomeState extends State<RiderHome> {
   bool locationReady = false;
   bool searching = false;
   bool selectingPlace = false;
+  Timer? destinationSearchDebounce;
+  int destinationSearchGeneration = 0;
   bool get rideActive => rideId != null;
   String? searchError;
   bool noInternet = false;
@@ -97,6 +99,7 @@ class _RiderHomeState extends State<RiderHome> {
     connectivitySubscription?.cancel();
     locationServiceSubscription?.cancel();
     rideSubscription?.cancel();
+    destinationSearchDebounce?.cancel();
     destinationSearchController.dispose();
     super.dispose();
   }
@@ -246,6 +249,23 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
+  void onDestinationQueryChanged(String value) {
+    destinationSearchDebounce?.cancel();
+    final query = value.trim();
+    if (query.length < 2) {
+      setState(() {
+        suggestions = [];
+        searchError = null;
+        searching = false;
+      });
+      return;
+    }
+    destinationSearchDebounce = Timer(
+      const Duration(milliseconds: 350),
+      () => searchDestinations(query),
+    );
+  }
+
   Future<void> searchDestinations(String value) async {
     if (noInternet) {
       if (mounted) setState(() => searchError = 'No internet connection');
@@ -272,6 +292,7 @@ class _RiderHomeState extends State<RiderHome> {
       return;
     }
 
+    final generation = ++destinationSearchGeneration;
     setState(() {
       searching = true;
       searchError = null;
@@ -336,18 +357,18 @@ class _RiderHomeState extends State<RiderHome> {
           .whereType<_PlaceSuggestion>()
           .toList();
 
-      if (!mounted) return;
+      if (!mounted || generation != destinationSearchGeneration) return;
       setState(() {
         suggestions = parsed;
         searching = false;
         searchError = parsed.isEmpty ? 'No destinations found' : null;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != destinationSearchGeneration) return;
       setState(() {
         searching = false;
         suggestions = [];
-        searchError = 'Unable to search destinations';
+        searchError = 'Destination search is unavailable. Try again.';
       });
     }
   }
@@ -740,14 +761,7 @@ class _RiderHomeState extends State<RiderHome> {
                         textInputAction: TextInputAction.search,
                         enabled: !rideActive,
                         onSubmitted: searchDestinations,
-                        onChanged: (value) {
-                          if (value.trim().length < 2) {
-                            setState(() {
-                              suggestions = [];
-                              searchError = null;
-                            });
-                          }
-                        },
+                        onChanged: onDestinationQueryChanged,
                         decoration: InputDecoration(
                           hintText: 'Search destination',
                           prefixIcon: const Icon(Icons.search),
