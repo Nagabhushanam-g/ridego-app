@@ -552,7 +552,11 @@ class _RiderHomeState extends State<RiderHome> {
       await ensureSignedIn();
       await rideSubscription?.cancel();
 
-      final generatedPin = (1000 + math.Random.secure().nextInt(9000)).toString();
+      final profile = await rideGoFirestore.collection('profiles').doc(riderUid).get();
+      final fixedPin = profile.data()?['ridePin']?.toString();
+      if (fixedPin == null || fixedPin.length != 4) {
+        throw StateError('Rider start PIN is not configured');
+      }
       final ride = await rideGoFirestore.collection('rideRequests').add({
         'riderId': riderUid,
         'status': 'requested',
@@ -570,14 +574,14 @@ class _RiderHomeState extends State<RiderHome> {
         'destinationAddress': destinationAddress,
         'createdAt': FieldValue.serverTimestamp(),
         'driverId': null,
-        'ridePin': generatedPin,
+        'ridePin': fixedPin,
         'pinVerified': false,
       });
 
       if (!mounted) return;
       setState(() {
         rideId = ride.id;
-        ridePin = generatedPin;
+        ridePin = fixedPin;
         status = 'SEARCHING_DRIVER';
       });
 
