@@ -351,10 +351,29 @@ class _RiderHomeState extends State<RiderHome> {
 
       if (response.statusCode != 200) {
         if (!mounted || generation != destinationSearchGeneration) return;
+        String reason = 'HTTP ${response.statusCode}';
+        try {
+          final errorBody = jsonDecode(response.body) as Map<String, dynamic>;
+          final error = errorBody['error'] as Map<String, dynamic>?;
+          final status = error?['status']?.toString().trim();
+          final message = error?['message']?.toString().trim();
+          if (status != null && status.isNotEmpty) {
+            reason = 'HTTP ${response.statusCode} · $status';
+          }
+          if (message != null && message.isNotEmpty) {
+            final safeMessage = message
+                .replaceAll(RegExp(r'AIza[0-9A-Za-z_-]+'), '[API key hidden]')
+                .replaceAll(RegExp(r'key=[^&\\s]+'), 'key=[hidden]');
+            reason = '$reason: $safeMessage';
+          }
+        } catch (_) {}
+        if (reason.length > 220) {
+          reason = '${reason.substring(0, 217)}...';
+        }
         setState(() {
           searching = false;
           suggestions = [];
-          searchError = 'Destination search error (HTTP ${response.statusCode})';
+          searchError = 'Destination search error: $reason';
         });
         return;
       }
