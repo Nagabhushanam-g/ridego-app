@@ -314,12 +314,24 @@ class _RiderHomeState extends State<RiderHome> {
         searching = false;
         searchError = parsed.isEmpty ? 'No destinations found' : null;
       });
-    } catch (_) {
+    } on PlatformException catch (error) {
+      if (!mounted || generation != destinationSearchGeneration) return;
+      final code = error.code.trim();
+      final message = (error.message ?? '').replaceAll(RegExp(r'\\s+'), ' ').trim();
+      var detail = code.isEmpty ? 'Native Places error' : code;
+      if (message.isNotEmpty) detail = '$detail: $message';
+      if (detail.length > 220) detail = '${detail.substring(0, 217)}...';
+      setState(() {
+        searching = false;
+        suggestions = [];
+        searchError = 'Destination search error: $detail';
+      });
+    } catch (error) {
       if (!mounted || generation != destinationSearchGeneration) return;
       setState(() {
         searching = false;
         suggestions = [];
-        searchError = 'Unable to search destinations';
+        searchError = 'Destination search error: ${error.runtimeType}';
       });
     }
   }
