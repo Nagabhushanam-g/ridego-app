@@ -1,4 +1,5 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
@@ -60,4 +61,36 @@ exports.notifyRideStatusChange = onDocumentUpdated({
     event.params.rideId,
     status,
   );
+});
+
+
+const RIDE_SEARCH_TIMEOUT_MS = 5 * 60 * 1000;
+
+exports.expireUnmatchedRideRequests = onSchedule({
+  schedule: 'every 1 minutes',
+  timeZone: 'UTC',
+}, async () => {
+  const cutoff = new Date(Date.now() - RIDE_SEARCH_TIMEOUT_MS);
+  const snapshot = await db.collection('rideRequests')
+    .where('status', '==', 'requested')
+    .where('createdAt', '<=', cutoff)
+    .get();
+
+  if (snapshot.empty) return;
+
+  await Promise.all(snapshot.docs.map(async (doc) => {
+    await db.runTransaction(async (transaction) => {
+      const fresh = await transaction.get(doc.ref);
+      if (!fresh.exists) return;
+
+      const ride = fresh.data();
+      if (ride.status !== 'requested' || ride.driverId) return;
+
+      transaction.update(doc.ref, {
+        status: 'expired',
+        expiredAt: new Date(),
+        expiryReason: 'no_driver_available',
+      });
+    });
+  }));
 });
