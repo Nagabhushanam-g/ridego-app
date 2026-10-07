@@ -517,6 +517,7 @@ class _RiderHomeState extends State<RiderHome> {
         'completed' => 'COMPLETED',
         'cancelled' => 'CANCELLED',
         'expired' => 'NO_DRIVERS_AVAILABLE',
+        'expired' => 'NO_DRIVERS_AVAILABLE',
         _ => 'SEARCHING_DRIVER',
       };
 
@@ -597,7 +598,10 @@ class _RiderHomeState extends State<RiderHome> {
       }
 
       if (nextStatus == 'completed' || nextStatus == 'cancelled' || nextStatus == 'expired') {
-        Future.delayed(const Duration(seconds: 2), () {
+        final resetDelay = nextStatus == 'expired'
+            ? const Duration(seconds: 8)
+            : const Duration(seconds: 2);
+        Future.delayed(resetDelay, () {
           if (!mounted || rideId != id) return;
           rideSubscription?.cancel();
           rideSubscription = null;
