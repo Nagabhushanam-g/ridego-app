@@ -24,10 +24,21 @@ service cloud.firestore {
       allow read: if isSelf(uid);
       allow create: if isSelf(uid)
         && request.resource.data.uid == uid
-        && request.resource.data.role in ['rider', 'driver'];
+        && request.resource.data.role in ['rider', 'driver']
+        && (
+          request.resource.data.role != 'rider'
+          || (
+            request.resource.data.ridePin is string
+            && request.resource.data.ridePin.size() == 4
+          )
+        );
       allow update: if isSelf(uid)
         && request.resource.data.uid == resource.data.uid
-        && request.resource.data.role == resource.data.role;
+        && request.resource.data.role == resource.data.role
+        && (
+          resource.data.role != 'rider'
+          || request.resource.data.ridePin == resource.data.ridePin
+        );
       allow delete: if false;
     }
 
