@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -56,6 +57,7 @@ class _RiderHomeState extends State<RiderHome> {
   LatLng pickup = const LatLng(17.3850, 78.4867);
   LatLng? destination;
   String destinationAddress = '';
+  String pickupAddress = '';
   String vehicle = 'Bike';
   String status = 'Choose your destination';
   int fare = 0;
@@ -141,6 +143,29 @@ class _RiderHomeState extends State<RiderHome> {
     });
   }
 
+  Future<void> _resolvePickupAddress(LatLng point) async {
+    try {
+      final places = await placemarkFromCoordinates(
+        point.latitude,
+        point.longitude,
+      );
+      if (!mounted || places.isEmpty) return;
+      final place = places.first;
+      final parts = <String>[
+        place.name ?? '',
+        place.street ?? '',
+        place.subLocality ?? '',
+        place.locality ?? '',
+      ].where((part) => part.trim().isNotEmpty).toList();
+      final label = parts.toSet().join(', ');
+      if (label.isNotEmpty) {
+        setState(() => pickupAddress = label);
+      }
+    } catch (_) {
+      // Coordinates remain usable even when the device geocoder is unavailable.
+    }
+  }
+
   void _beginPickupSelection() {
     if (rideActive) return;
     setState(() {
@@ -156,6 +181,7 @@ class _RiderHomeState extends State<RiderHome> {
       locationReady = false;
       status = 'Pickup selected';
     });
+    _resolvePickupAddress(point);
     recalculateFare();
     map?.animateCamera(CameraUpdate.newLatLngZoom(point, 15));
   }
@@ -201,6 +227,7 @@ class _RiderHomeState extends State<RiderHome> {
         locationReady = true;
       });
 
+      _resolvePickupAddress(current);
       map?.animateCamera(CameraUpdate.newLatLngZoom(current, 15));
     } catch (_) {
       if (mounted && !rideActive) {
@@ -872,10 +899,25 @@ class _RiderHomeState extends State<RiderHome> {
                         children: [
                           const Icon(Icons.my_location, size: 20),
                           const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Pickup location',
-                              style: TextStyle(fontWeight: FontWeight.w600),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Pickup',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                                Text(
+                                  pickupAddress.isEmpty
+                                      ? (locationReady
+                                          ? 'Current location'
+                                          : 'Choose pickup location')
+                                      : pickupAddress,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
                             ),
                           ),
                           TextButton(
