@@ -56,6 +56,9 @@ class _RiderHomeState extends State<RiderHome> {
   LatLng pickup = const LatLng(17.3850, 78.4867);
   LatLng? destination;
   String destinationAddress = '';
+  String pickupAddress = '';
+  bool locationServiceEnabled = true;
+  bool selectingPickup = false;
   String vehicle = 'Bike';
   String status = 'Choose your destination';
   int fare = 0;
@@ -67,6 +70,7 @@ class _RiderHomeState extends State<RiderHome> {
   String? searchError;
   bool noInternet = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
+  StreamSubscription<ServiceStatus>? locationServiceSubscription;
 
   final TextEditingController destinationSearchController =
       TextEditingController();
@@ -80,6 +84,7 @@ class _RiderHomeState extends State<RiderHome> {
   void initState() {
     super.initState();
     _monitorConnectivity();
+    _monitorLocationService();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await RideGoNotificationService.initialize(context, role: 'rider');
       await restoreActiveRide();
@@ -90,6 +95,7 @@ class _RiderHomeState extends State<RiderHome> {
   @override
   void dispose() {
     connectivitySubscription?.cancel();
+    locationServiceSubscription?.cancel();
     rideSubscription?.cancel();
     destinationSearchController.dispose();
     super.dispose();
@@ -117,13 +123,91 @@ class _RiderHomeState extends State<RiderHome> {
     connectivitySubscription = connectivity.onConnectivityChanged.listen(apply);
   }
 
+  void _monitorLocationService() {
+    locationServiceSubscription =
+        Geolocator.getServiceStatusStream().listen((serviceStatus) {
+      final enabled = serviceStatus == ServiceStatus.enabled;
+      if (!mounted) return;
+
+      setState(() {
+        locationServiceEnabled = enabled;
+        if (!enabled && !rideActive) {
+          locationReady = false;
+          status = 'Location is turned off';
+        }
+      });
+
+      if (enabled && !rideActive) {
+        locate();
+      }
+    });
+  }
+
+  Future<void> _reverseGeocodePickup(LatLng point) async {
+    if (googleMapsApiKey.isEmpty || noInternet) return;
+    try {
+      final uri = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/geocode/json',
+        {
+          'latlng': '${point.latitude},${point.longitude}',
+          'key': googleMapsApiKey,
+          'language': 'en',
+        },
+      );
+      final response = await http.get(uri);
+      if (response.statusCode != 200) return;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? const [];
+      if (results.isEmpty) return;
+      final address =
+          (results.first as Map<String, dynamic>)['formatted_address'] as String?;
+      if (!mounted || address == null || address.isEmpty) return;
+      setState(() => pickupAddress = address);
+    } catch (_) {
+      // Coordinates remain usable if reverse geocoding is unavailable.
+    }
+  }
+
+  void _beginPickupSelection() {
+    if (rideActive) return;
+    setState(() {
+      selectingPickup = true;
+      destination = null;
+      destinationAddress = '';
+      fare = 0;
+      distanceKm = 0;
+      status = 'Tap the map to choose pickup';
+    });
+  }
+
+  Future<void> _selectPickup(LatLng point) async {
+    if (rideActive) return;
+    setState(() {
+      pickup = point;
+      pickupAddress = '';
+      selectingPickup = false;
+      locationReady = false;
+      status = 'Choose your destination';
+    });
+    map?.animateCamera(CameraUpdate.newLatLngZoom(point, 15));
+    await _reverseGeocodePickup(point);
+  }
+
   Future<void> locate() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         if (mounted && !rideActive) {
-          setState(() => status = 'Turn on Location to continue');
+          setState(() {
+            locationServiceEnabled = false;
+            locationReady = false;
+            status = 'Location is turned off';
+          });
         }
         return;
+      }
+      if (mounted) {
+        setState(() => locationServiceEnabled = true);
       }
 
       var permission = await Geolocator.checkPermission();
@@ -154,6 +238,7 @@ class _RiderHomeState extends State<RiderHome> {
       });
 
       map?.animateCamera(CameraUpdate.newLatLngZoom(current, 15));
+      await _reverseGeocodePickup(current);
     } catch (_) {
       if (mounted && !rideActive) {
         setState(() => status = 'Unable to get current location');
@@ -589,7 +674,11 @@ class _RiderHomeState extends State<RiderHome> {
               myLocationEnabled: locationReady,
               myLocationButtonEnabled: false,
               onMapCreated: (controller) => map = controller,
-              onTap: rideActive ? null : (point) => selectDestination(point),
+              onTap: rideActive
+                  ? null
+                  : (point) => selectingPickup
+                      ? _selectPickup(point)
+                      : selectDestination(point),
               markers: {
                 Marker(markerId: const MarkerId('pickup'), position: pickup),
                 if (destination != null)
@@ -739,6 +828,35 @@ class _RiderHomeState extends State<RiderHome> {
                 ),
               ),
             ),
+            if (!locationServiceEnabled && !rideActive)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 148,
+                left: 16,
+                right: 16,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_off),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Location is turned off. Turn it on or choose your pickup manually.',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: Geolocator.openLocationSettings,
+                          child: const Text('TURN ON'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             if (noInternet)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 76,
@@ -829,6 +947,30 @@ class _RiderHomeState extends State<RiderHome> {
                             },
                     ),
                     const SizedBox(height: 10),
+                    if (!rideActive)
+                      Row(
+                        children: [
+                          const Icon(Icons.my_location, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              pickupAddress.isEmpty
+                                  ? (locationServiceEnabled
+                                      ? 'Current pickup'
+                                      : 'Pickup location not confirmed')
+                                  : pickupAddress,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _beginPickupSelection,
+                            child: Text(selectingPickup ? 'TAP MAP' : 'CHANGE'),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
