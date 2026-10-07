@@ -26,6 +26,15 @@ service cloud.firestore {
         && request.resource.data.uid == uid
         && request.resource.data.role in ['rider', 'driver']
         && (
+          request.resource.data.role != 'driver'
+          || (
+            request.resource.data.drivingLicense is string
+            && request.resource.data.drivingLicense.size() >= 5
+            && request.resource.data.rcFrontUrl is string
+            && request.resource.data.rcBackUrl is string
+          )
+        )
+        && (
           request.resource.data.role != 'rider'
           || (
             request.resource.data.ridePin is string
