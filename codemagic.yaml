@@ -10,7 +10,13 @@ workflows:
         script: |
           cd rider
           flutter pub get
-          flutter build apk --release
+          if [ -z "$GOOGLE_MAPS_API_KEY" ]; then
+            echo "GOOGLE_MAPS_API_KEY is required"
+            exit 1
+          fi
+          flutter build apk --release \
+            --dart-define=GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY" \
+            --dart-define=GOOGLE_MAPS_ANDROID_CERT="$GOOGLE_MAPS_ANDROID_CERT"
       - name: Build Driver APK
         script: |
           cd driver
