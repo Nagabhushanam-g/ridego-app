@@ -76,6 +76,7 @@ class _RiderHomeState extends State<RiderHome> {
   String? riderUid;
   String? rideId;
   String? ridePin;
+  String? driverVehicleNumber;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
 
   @override
@@ -454,6 +455,7 @@ class _RiderHomeState extends State<RiderHome> {
       destinationAddress =
           (data['destinationAddress'] ?? destinationAddress).toString();
       ridePin = data['ridePin']?.toString();
+      driverVehicleNumber = data['driverVehicleNumber']?.toString();
       if (pickupLat != null && pickupLng != null) {
         pickup = LatLng(pickupLat, pickupLng);
       }
@@ -515,6 +517,7 @@ class _RiderHomeState extends State<RiderHome> {
           setState(() {
             rideId = null;
             ridePin = null;
+            driverVehicleNumber = null;
             destination = null;
             destinationAddress = '';
             fare = 0;
@@ -902,6 +905,20 @@ class _RiderHomeState extends State<RiderHome> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(status),
+                              if ((status == 'DRIVER_ACCEPTED' ||
+                                      status == 'DRIVER_ARRIVED' ||
+                                      status == 'TRIP_STARTED') &&
+                                  driverVehicleNumber != null &&
+                                  driverVehicleNumber!.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Vehicle: $driverVehicleNumber',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                               if ((status == 'DRIVER_ACCEPTED' ||
                                       status == 'DRIVER_ARRIVED') &&
                                   ridePin != null) ...[
