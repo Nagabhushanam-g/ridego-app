@@ -101,7 +101,7 @@ service cloud.firestore {
             || (resource.data.status == 'arrived' && request.resource.data.status == 'started')
             || (resource.data.status == 'started' && request.resource.data.status == 'completed')
           )
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'arrivedAt', 'startedAt', 'completedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'arrivedAt', 'startedAt', 'completedAt', 'pinVerified', 'pinVerifiedAt'])
         )
       );
 
