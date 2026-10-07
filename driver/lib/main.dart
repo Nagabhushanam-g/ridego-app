@@ -58,6 +58,8 @@ class _DriverHomeState extends State<DriverHome> {
   Map<String, dynamic>? pendingRide;
   bool noInternet = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
+  final TextEditingController startPinController = TextEditingController();
+  String? pinError;
 
   @override
   void initState() {
@@ -75,6 +77,7 @@ class _DriverHomeState extends State<DriverHome> {
   void dispose() {
     connectivitySubscription?.cancel();
     rideSubscription?.cancel();
+    startPinController.dispose();
     super.dispose();
   }
 
@@ -335,6 +338,299 @@ class _DriverHomeState extends State<DriverHome> {
         status = online ? 'Online — waiting for rides' : 'Offline';
       });
       if (online) watchRideRequests();
+    }
+  }
+
+  Future<bool> _confirmStartPin(String id) async {
+    final enteredPin = startPinController.text.trim();
+    if (!RegExp(r'^\\d{4}
+    if (noInternet) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection')),
+        );
+      }
+      return;
+    }
+    final id = rideId;
+    if (id == null) return;
+    if (status == 'DRIVER_ARRIVED') {
+      final verified = await _confirmStartPin(id);
+      if (!mounted) return;
+      if (!verified) {
+        setState(() => pinError = 'Incorrect PIN. Ask the rider for the PIN shown in their app.');
+        return;
+      }
+      startPinController.clear();
+      setState(() {
+        pinError = null;
+        status = 'TRIP_STARTED';
+      });
+      return;
+    }
+
+    final nextStatus = switch (status) {
+      'DRIVER_ACCEPTED' => 'arrived',
+      'TRIP_STARTED' => 'completed',
+      _ => null,
+    };
+    if (nextStatus == null) return;
+    try {
+      await rideGoFirestore.collection('rideRequests').doc(id).update({
+        'status': nextStatus,
+        if (nextStatus == 'arrived') 'arrivedAt': FieldValue.serverTimestamp(),
+        if (nextStatus == 'started') 'startedAt': FieldValue.serverTimestamp(),
+        if (nextStatus == 'completed') 'completedAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
+      setState(() {
+        status = switch (nextStatus) {
+          'arrived' => 'DRIVER_ARRIVED',
+          'started' => 'TRIP_STARTED',
+          'completed' => 'COMPLETED',
+          _ => status,
+        };
+        if (nextStatus == 'completed') {
+          pendingRide = null;
+          rideId = null;
+        }
+      });
+
+      if (nextStatus == 'completed') {
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (mounted && online && rideId == null) {
+          setState(() => status = 'Online — waiting for rides');
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => status = 'Unable to update ride');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition:
+                  CameraPosition(target: location, zoom: 14),
+              myLocationEnabled: locationReady,
+              myLocationButtonEnabled: false,
+              onMapCreated: (controller) => map = controller,
+              markers: {
+                Marker(
+                  markerId: const MarkerId('driver'),
+                  position: location,
+                  infoWindow: const InfoWindow(title: 'Driver location'),
+                ),
+              },
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    IconButton.filledTonal(
+                      tooltip: 'Trip history',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const DriverHistoryScreen()),
+                      ),
+                      icon: const Icon(Icons.person),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'RideGo Driver',
+                        style: TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton.filledTonal(
+                      onPressed: locate,
+                      icon: const Icon(Icons.my_location),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (noInternet)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 76,
+                left: 16,
+                right: 16,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.wifi_off),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'No internet connection — reconnecting…',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Driver status',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Chip(
+                          label: Text(online ? 'ONLINE' : 'OFFLINE'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(status),
+                    const SizedBox(height: 12),
+                    if (online &&
+                        pendingRide != null &&
+                        rideId != null &&
+                        status == 'New ride request')
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.notifications_active),
+                          title: Text(
+                            (pendingRide!['vehicle'] ?? 'Ride').toString() + ' request',
+                          ),
+                          subtitle: Text(
+                            'Pickup nearby • ₹' +
+                                (pendingRide!['fare'] ?? 0).toString() +
+                                ' • ' +
+                                (pendingRide!['distanceKm'] ?? 0).toString() +
+                                ' km',
+                          ),
+                          trailing: FilledButton(
+                            onPressed: noInternet ? null : accept,
+                            child: const Text('ACCEPT'),
+                          ),
+                        ),
+                      ),
+                    if (rideId != null && status == 'DRIVER_ARRIVED') ...[
+                      TextField(
+                        controller: startPinController,
+                        enabled: !noInternet,
+                        keyboardType: TextInputType.number,
+                        maxLength: 4,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: 'Enter rider start PIN',
+                          hintText: '4-digit PIN',
+                          counterText: '',
+                          errorText: pinError,
+                          prefixIcon: const Icon(Icons.pin_outlined),
+                          border: const OutlineInputBorder(),
+                        ),
+                        onChanged: (_) {
+                          if (pinError != null) setState(() => pinError = null);
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (rideId != null &&
+                        (status == 'DRIVER_ACCEPTED' ||
+                            status == 'DRIVER_ARRIVED' ||
+                            status == 'TRIP_STARTED'))
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: FilledButton(
+                          onPressed: noInternet ? null : next,
+                          child: Text(
+                            status == 'DRIVER_ACCEPTED'
+                                ? 'DRIVER ARRIVED'
+                                : status == 'DRIVER_ARRIVED'
+                                    ? 'START TRIP'
+                                    : 'COMPLETE TRIP',
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton(
+                        onPressed: noInternet ? null : toggle,
+                        child: Text(online ? 'GO OFFLINE' : 'GO ONLINE'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+).hasMatch(enteredPin)) {
+      if (mounted) setState(() => pinError = 'Enter the 4-digit rider PIN');
+      return false;
+    }
+
+    try {
+      return await rideGoFirestore.runTransaction<bool>((transaction) async {
+        final ref = rideGoFirestore.collection('rideRequests').doc(id);
+        final snapshot = await transaction.get(ref);
+        final data = snapshot.data();
+        if (!snapshot.exists ||
+            data == null ||
+            data['status'] != 'arrived' ||
+            data['driverId'] != driverUid ||
+            data['ridePin']?.toString() != enteredPin) {
+          return false;
+        }
+        transaction.update(ref, {
+          'status': 'started',
+          'pinVerified': true,
+          'pinVerifiedAt': FieldValue.serverTimestamp(),
+          'startedAt': FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+    } catch (_) {
+      return false;
     }
   }
 
