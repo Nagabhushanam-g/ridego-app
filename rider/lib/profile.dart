@@ -110,60 +110,7 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
       final profileRef = _profilesDb.collection('profiles').doc(user.uid);
       final existing = await profileRef.get();
       final existingPin = existing.data()?['ridePin']?.toString();
-      final ridePin = existingPin != null && RegExp(r'^\d{4}
-        'uid': user.uid,
-        'role': 'rider',
-        'fullName': fullName,
-        'phone': mobile,
-        'email': user.email,
-        'ridePin': ridePin,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      if (mounted) widget.onSaved();
-    } catch (_) {
-      if (mounted) setState(() => error = 'Unable to save profile. Please try again.');
-    } finally {
-      if (mounted) setState(() => saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final email = FirebaseAuth.instance.currentUser?.email ?? '';
-    return Scaffold(
-      appBar: AppBar(title: const Text('Rider profile')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            const Icon(Icons.person, size: 72),
-            const SizedBox(height: 12),
-            const Text('Complete your profile', textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            TextField(controller: name, textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Full name', prefixIcon: Icon(Icons.person_outline), border: OutlineInputBorder())),
-            const SizedBox(height: 14),
-            TextField(controller: phone, keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_outlined), border: OutlineInputBorder())),
-            const SizedBox(height: 14),
-            Text('Email: $email'),
-            if (error != null) ...[
-              const SizedBox(height: 12),
-              Text(error!, style: const TextStyle(color: Colors.red)),
-            ],
-            const SizedBox(height: 20),
-            SizedBox(height: 50, child: FilledButton(
-              onPressed: saving ? null : save,
-              child: saving ? const CircularProgressIndicator() : const Text('SAVE & CONTINUE'),
-            )),
-          ],
-        ),
-      ),
-    );
-  }
-}
-).hasMatch(existingPin)
+      final ridePin = existingPin != null && existingPin.length == 4
           ? existingPin
           : (1000 + math.Random.secure().nextInt(9000)).toString();
       await profileRef.set({
@@ -172,6 +119,7 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
         'fullName': fullName,
         'phone': mobile,
         'email': user.email,
+        'ridePin': ridePin,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       if (mounted) widget.onSaved();
