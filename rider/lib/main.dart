@@ -291,116 +291,24 @@ class _RiderHomeState extends State<RiderHome> {
       return;
     }
     final query = value.trim();
-    if (query.length < 2) {
-      if (mounted) {
-        setState(() {
-          suggestions = [];
-          searchError = null;
-        });
-      }
-      return;
-    }
-
-    if (googleMapsApiKey.isEmpty) {
-      if (mounted) {
-        setState(() {
-          suggestions = [];
-          searchError = 'Google Maps API key is not configured';
-        });
-      }
-      return;
-    }
-
+    if (query.length < 2) return;
     setState(() {
       searching = true;
       searchError = null;
     });
-
     try {
-      final uri = Uri.parse(
-        'https://places.googleapis.com/v1/places:autocomplete',
+      final raw = await riderLocationChannel.invokeMethod<List<dynamic>>(
+        'searchPlaces',
+        {'query': query},
       );
-
-      final body = {
-        'input': query,
-        'languageCode': 'en',
-        'regionCode': 'IN',
-        'locationBias': {
-          'circle': {
-            'center': {
-              'latitude': pickup.latitude,
-              'longitude': pickup.longitude,
-            },
-            'radius': 50000.0,
-          },
-        },
-      };
-
-      final response = await http.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': googleMapsApiKey,
-          if (androidCertSha1.isNotEmpty)
-            'X-Android-Package': 'com.ridego.rider',
-          if (androidCertSha1.isNotEmpty)
-            'X-Android-Cert': androidCertSha1,
-        },
-        body: jsonEncode(body),
-      );
-
-      if (response.statusCode != 200) {
-        if (!mounted || generation != destinationSearchGeneration) return;
-        String reason = 'HTTP ${response.statusCode}';
-        try {
-          final errorBody = jsonDecode(response.body) as Map<String, dynamic>;
-          final error = errorBody['error'] as Map<String, dynamic>?;
-          final status = error?['status']?.toString().trim();
-          final message = error?['message']?.toString().trim();
-          if (status != null && status.isNotEmpty) {
-            reason = 'HTTP ${response.statusCode} · $status';
-          }
-          if (message != null && message.isNotEmpty) {
-            final safeMessage = message
-                .replaceAll(RegExp(r'AIza[0-9A-Za-z_-]+'), '[API key hidden]')
-                .replaceAll(RegExp(r'key=[^&\\s]+'), 'key=[hidden]');
-            reason = '$reason: $safeMessage';
-          }
-        } catch (_) {}
-        if (reason.length > 220) {
-          reason = '${reason.substring(0, 217)}...';
-        }
-        setState(() {
-          searching = false;
-          suggestions = [];
-          searchError = 'Destination search error: $reason';
-        });
-        return;
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final rawSuggestions = (data['suggestions'] as List<dynamic>? ?? []);
-
-      final parsed = rawSuggestions
-          .map((item) {
-            final prediction =
-                item['placePrediction'] as Map<String, dynamic>?;
-            if (prediction == null) return null;
-
-            final placeId = prediction['placeId'] as String?;
-            final text = prediction['text'] as Map<String, dynamic>?;
-            final label = text?['text'] as String?;
-
-            if (placeId == null || label == null || label.isEmpty) {
-              return null;
-            }
-
-            return _PlaceSuggestion(placeId: placeId, label: label);
-          })
-          .whereType<_PlaceSuggestion>()
-          .toList();
-
       if (!mounted || generation != destinationSearchGeneration) return;
+      final parsed = (raw ?? const <dynamic>[]).map((item) {
+        final value = Map<String, dynamic>.from(item as Map);
+        final id = value['placeId']?.toString();
+        final label = value['label']?.toString();
+        if (id == null || label == null || label.isEmpty) return null;
+        return _PlaceSuggestion(placeId: id, label: label);
+      }).whereType<_PlaceSuggestion>().toList();
       setState(() {
         suggestions = parsed;
         searching = false;
@@ -421,57 +329,25 @@ class _RiderHomeState extends State<RiderHome> {
       if (mounted) setState(() => searchError = 'No internet connection');
       return;
     }
-    if (googleMapsApiKey.isEmpty) return;
-
     setState(() {
       selectingPlace = true;
       searchError = null;
       suggestions = [];
     });
-
     try {
-      final encodedPlaceId = Uri.encodeComponent(suggestion.placeId);
-      final uri = Uri.parse(
-        'https://places.googleapis.com/v1/places/$encodedPlaceId',
+      final raw = await riderLocationChannel.invokeMethod<Map<dynamic, dynamic>>(
+        'placeDetails',
+        {'placeId': suggestion.placeId},
       );
-
-      final response = await http.get(
-        uri,
-        headers: {
-          'X-Goog-Api-Key': googleMapsApiKey,
-          'X-Goog-FieldMask': 'location,formattedAddress,displayName',
-          if (androidCertSha1.isNotEmpty)
-            'X-Android-Package': 'com.ridego.rider',
-          if (androidCertSha1.isNotEmpty)
-            'X-Android-Cert': androidCertSha1,
-        },
-      );
-
-      if (response.statusCode != 200) {
-        if (!mounted) return;
-        setState(() {
-          selectingPlace = false;
-          searchError = 'Destination details error (HTTP ${response.statusCode})';
-        });
-        return;
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final location = data['location'] as Map<String, dynamic>?;
-      final lat = (location?['latitude'] as num?)?.toDouble();
-      final lng = (location?['longitude'] as num?)?.toDouble();
-
-      if (lat == null || lng == null) {
-        throw Exception('Destination coordinates were not returned');
-      }
-
-      final address =
-          data['formattedAddress'] as String? ?? suggestion.label;
-
+      final data = raw == null ? null : Map<String, dynamic>.from(raw);
+      final lat = (data?['latitude'] as num?)?.toDouble();
+      final lng = (data?['longitude'] as num?)?.toDouble();
+      if (lat == null || lng == null) throw const FormatException();
+      final address = data?['address']?.toString().trim();
       destinationSearchController.text = suggestion.label;
       selectDestination(
         LatLng(lat, lng),
-        address: address,
+        address: address != null && address.isNotEmpty ? address : suggestion.label,
         moveCamera: true,
       );
     } catch (_) {
