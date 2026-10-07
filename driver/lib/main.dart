@@ -320,9 +320,12 @@ class _DriverHomeState extends State<DriverHome> {
             data['driverId'] != null) {
           throw StateError('Ride is no longer available');
         }
+        final profile = await rideGoFirestore.collection('profiles').doc(driverUid).get();
+        final vehicleNumber = profile.data()?['vehicleNumber']?.toString() ?? '';
         transaction.update(ref, {
           'status': 'accepted',
           'driverId': driverUid,
+          'driverVehicleNumber': vehicleNumber,
           'acceptedAt': FieldValue.serverTimestamp(),
         });
       });
