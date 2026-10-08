@@ -680,6 +680,11 @@ class _RiderHomeState extends State<RiderHome> {
             destinationAddress = '';
             fare = 0;
             distanceKm = 0;
+            drivingMinutes = null;
+            roadRoute = [];
+            routeLoading = false;
+            routeError = null;
+            routeGeneration++;
             status = wasExpired ? 'No drivers available. Please try again.' : 'Choose your destination';
             suggestions = [];
             searchError = null;
