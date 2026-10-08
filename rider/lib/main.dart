@@ -838,6 +838,43 @@ class _RiderHomeState extends State<RiderHome> {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    if (!rideActive) ...[
+                      Material(
+                        elevation: 3,
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.my_location, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Pickup', style: TextStyle(fontWeight: FontWeight.w700)),
+                                    Text(
+                                      pickupAddress.isEmpty
+                                          ? (locationReady ? 'Current location' : 'Choose pickup location')
+                                          : pickupAddress,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: selectingPickup ? null : _beginPickupSelection,
+                                child: Text(selectingPickup ? 'SELECTING' : 'CHANGE'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Material(
                       elevation: 4,
                       borderRadius: BorderRadius.circular(16),
@@ -1007,40 +1044,6 @@ class _RiderHomeState extends State<RiderHome> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!rideActive) ...[
-                      Row(
-                        children: [
-                          const Icon(Icons.my_location, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Pickup',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                                Text(
-                                  pickupAddress.isEmpty
-                                      ? (locationReady
-                                          ? 'Current location'
-                                          : 'Choose pickup location')
-                                      : pickupAddress,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: selectingPickup ? null : _beginPickupSelection,
-                            child: Text(selectingPickup ? 'SELECTING' : 'CHANGE'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
