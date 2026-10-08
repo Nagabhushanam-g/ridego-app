@@ -1116,8 +1116,8 @@ class _RiderHomeState extends State<RiderHome> {
                       width: double.infinity,
                       height: 50,
                       child: FilledButton(
-                        onPressed: destination == null || rideActive || noInternet ? null : book,
-                        child: Text(rideActive ? 'RIDE IN PROGRESS' : 'BOOK RIDE'),
+                        onPressed: destination == null || rideActive || noInternet || routeLoading || roadRoute.isEmpty || routeError != null ? null : book,
+                        child: Text(rideActive ? 'RIDE IN PROGRESS' : routeLoading ? 'CALCULATING ROUTE…' : routeError != null ? 'ROUTE UNAVAILABLE' : 'BOOK RIDE'),
                       ),
                     ),
                     if (status == 'SEARCHING_DRIVER') ...[
