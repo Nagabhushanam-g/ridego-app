@@ -434,12 +434,41 @@ class _RiderHomeState extends State<RiderHome> {
         roadRoute = points;
         routeLoading = false;
       });
+      await _fitRouteOnMap(points);
     } catch (_) {
       if (!mounted || generation != routeGeneration || rideActive) return;
       setState(() {
         routeLoading = false;
         routeError = 'Road route unavailable; fare is an estimate';
       });
+    }
+  }
+
+  Future<void> _fitRouteOnMap(List<LatLng> points) async {
+    final controller = map;
+    if (controller == null || points.length < 2 || !mounted) return;
+    var south = points.first.latitude;
+    var north = south;
+    var west = points.first.longitude;
+    var east = west;
+    for (final point in points.skip(1)) {
+      south = math.min(south, point.latitude);
+      north = math.max(north, point.latitude);
+      west = math.min(west, point.longitude);
+      east = math.max(east, point.longitude);
+    }
+    // Avoid zero-size bounds for very short journeys.
+    const margin = 0.001;
+    try {
+      await controller.animateCamera(CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(south - margin, west - margin),
+          northeast: LatLng(north + margin, east + margin),
+        ),
+        72,
+      ));
+    } catch (_) {
+      // Camera fitting is visual-only; never block destination selection.
     }
   }
 
@@ -495,9 +524,7 @@ class _RiderHomeState extends State<RiderHome> {
     _loadRoadRoute(pickup, point);
 
     if (moveCamera) {
-      map?.animateCamera(
-        CameraUpdate.newLatLngZoom(point, 15),
-      );
+      _fitRouteOnMap([pickup, point]);
     }
   }
 
