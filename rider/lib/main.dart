@@ -452,6 +452,7 @@ class _RiderHomeState extends State<RiderHome> {
         'started' => 'TRIP_STARTED',
         'completed' => 'COMPLETED',
         'cancelled' => 'CANCELLED',
+        'expired' => 'NO_DRIVERS_AVAILABLE',
         _ => 'SEARCHING_DRIVER',
       };
 
@@ -525,19 +526,20 @@ class _RiderHomeState extends State<RiderHome> {
       final nextStatus = (data['status'] ?? 'requested').toString();
       applyRideData(id, data);
 
-      if (nextStatus == 'completed' || nextStatus == 'cancelled') {
+      if (nextStatus == 'completed' || nextStatus == 'cancelled' || nextStatus == 'expired') {
         Future.delayed(const Duration(seconds: 2), () {
           if (!mounted || rideId != id) return;
           rideSubscription?.cancel();
           rideSubscription = null;
           destinationSearchController.clear();
+          final wasExpired = nextStatus == 'expired';
           setState(() {
             rideId = null;
             destination = null;
             destinationAddress = '';
             fare = 0;
             distanceKm = 0;
-            status = 'Choose your destination';
+            status = wasExpired ? 'No drivers available. Please try again.' : 'Choose your destination';
             suggestions = [];
             searchError = null;
           });
@@ -936,7 +938,7 @@ class _RiderHomeState extends State<RiderHome> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(status),
+                              Text(status == 'SEARCHING_DRIVER' ? 'Searching for a driver…' : status),
                               if (destinationAddress.isNotEmpty)
                                 Text(
                                   destinationAddress,
