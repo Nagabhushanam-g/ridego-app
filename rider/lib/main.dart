@@ -704,27 +704,68 @@ class _RiderHomeState extends State<RiderHome> {
 
   Future<void> cancelRide() async {
     if (noInternet) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No internet connection')),
+      );
       return;
     }
     final id = rideId;
     if (id == null || status != 'SEARCHING_DRIVER') return;
 
+    const reasons = [
+      'Changed my plans',
+      'Booked by mistake',
+      'Waiting too long',
+      'No longer need the ride',
+      'Other reason',
+    ];
+    String? selectedReason;
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, updateSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Why are you cancelling?', style: Theme.of(sheetContext).textTheme.titleLarge),
+                const SizedBox(height: 8),
+                for (final option in reasons)
+                  RadioListTile<String>(
+                    title: Text(option),
+                    value: option,
+                    groupValue: selectedReason,
+                    onChanged: (value) => updateSheet(() => selectedReason = value),
+                  ),
+                FilledButton(
+                  onPressed: selectedReason == null ? null : () => Navigator.pop(sheetContext, selectedReason),
+                  child: const Text('CONFIRM CANCELLATION'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: const Text('KEEP SEARCHING'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || reason == null || rideId != id || status != 'SEARCHING_DRIVER') return;
     try {
       await rideGoFirestore.collection('rideRequests').doc(id).update({
         'status': 'cancelled',
         'cancelledAt': FieldValue.serverTimestamp(),
+        'cancellationReason': reason,
+        'cancelledBy': 'rider',
       });
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to cancel ride. A driver may have accepted it.'),
-          ),
+          const SnackBar(content: Text('Unable to cancel ride. A driver may have accepted it.')),
         );
       }
     }
@@ -879,6 +920,7 @@ class _RiderHomeState extends State<RiderHome> {
                       ),
                       const SizedBox(height: 8),
                     ],
+                    if (!rideActive)
                     Material(
                       elevation: 4,
                       borderRadius: BorderRadius.circular(16),
