@@ -79,6 +79,7 @@ class _RiderHomeState extends State<RiderHome> {
   bool selectingPickup = false;
   int homeTab = 0;
   bool showBookingMap = false;
+  bool searchingPickup = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
   StreamSubscription<ServiceStatus>? locationServiceSubscription;
   Timer? destinationSearchDebounce;
@@ -87,6 +88,7 @@ class _RiderHomeState extends State<RiderHome> {
 
   final TextEditingController destinationSearchController =
       TextEditingController();
+  final TextEditingController pickupSearchController = TextEditingController();
 
   List<_PlaceSuggestion> suggestions = [];
   String? riderUid;
@@ -113,6 +115,7 @@ class _RiderHomeState extends State<RiderHome> {
     destinationSearchDebounce?.cancel();
     rideExpiryCheck?.cancel();
     destinationSearchController.dispose();
+    pickupSearchController.dispose();
     super.dispose();
   }
 
@@ -382,6 +385,20 @@ class _RiderHomeState extends State<RiderHome> {
       final lng = (data?['longitude'] as num?)?.toDouble();
       if (lat == null || lng == null) throw const FormatException();
       final address = data?['address']?.toString().trim();
+      if (searchingPickup) {
+        pickupSearchController.text = suggestion.label;
+        setState(() {
+          pickup = LatLng(lat, lng);
+          pickupAddress = address != null && address.isNotEmpty ? address : suggestion.label;
+          searchingPickup = false;
+          selectingPlace = false;
+          locationReady = false;
+          suggestions = [];
+          searchError = null;
+        });
+        if (destination != null) recalculateFare();
+        return;
+      }
       destinationSearchController.text = suggestion.label;
       selectDestination(
         LatLng(lat, lng),
@@ -851,10 +868,36 @@ class _RiderHomeState extends State<RiderHome> {
             title: Text(pickupAddress.isEmpty ? 'Current pickup location' : pickupAddress,
               maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: const Text('Tap to change pickup'),
-            onTap: () => setState(() { selectingPickup = true; showBookingMap = true; }),
+            onTap: () => setState(() {
+              searchingPickup = true;
+              suggestions = [];
+              searchError = null;
+              pickupSearchController.clear();
+            }),
           ),
           const SizedBox(height: 16),
-          TextField(
+          if (searchingPickup) ...[
+            TextField(
+              controller: pickupSearchController,
+              autofocus: true,
+              onChanged: _onDestinationChanged,
+              onSubmitted: searchDestinations,
+              decoration: const InputDecoration(
+                hintText: 'Search pickup location',
+                prefixIcon: Icon(Icons.my_location),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => setState(() {
+                searchingPickup = false;
+                suggestions = [];
+                searchError = null;
+              }),
+              icon: const Icon(Icons.close),
+              label: const Text('Cancel pickup search'),
+            ),
+          ] else TextField(
             controller: destinationSearchController,
             onChanged: _onDestinationChanged,
             onSubmitted: searchDestinations,
