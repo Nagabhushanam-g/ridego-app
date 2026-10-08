@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'auth.dart';
 import 'history.dart';
 import 'notification_service.dart';
@@ -63,6 +64,11 @@ class _RiderHomeState extends State<RiderHome> {
   String status = 'Choose your destination';
   int fare = 0;
   double distanceKm = 0;
+  List<LatLng> roadRoute = [];
+  int? drivingMinutes;
+  int routeGeneration = 0;
+  bool routeLoading = false;
+  String? routeError;
   bool locationReady = false;
   bool searching = false;
   bool selectingPlace = false;
@@ -374,6 +380,69 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
+  List<LatLng> _decodeRoute(String encoded) {
+    final points = <LatLng>[];
+    var index = 0, lat = 0, lng = 0;
+    while (index < encoded.length) {
+      final values = <int>[];
+      for (var axis = 0; axis < 2; axis++) {
+        var result = 0, shift = 0, chunk = 0;
+        do {
+          if (index >= encoded.length) throw const FormatException('Invalid route');
+          chunk = encoded.codeUnitAt(index++) - 63;
+          result |= (chunk & 0x1f) << shift;
+          shift += 5;
+        } while (chunk >= 0x20);
+        values.add((result & 1) != 0 ? ~(result >> 1) : result >> 1);
+      }
+      lat += values[0];
+      lng += values[1];
+      points.add(LatLng(lat / 1e5, lng / 1e5));
+    }
+    return points;
+  }
+
+  Future<void> _loadRoadRoute(LatLng origin, LatLng target) async {
+    final generation = ++routeGeneration;
+    setState(() {
+      routeLoading = true;
+      roadRoute = [];
+      drivingMinutes = null;
+      routeError = null;
+    });
+    try {
+      final result = await FirebaseFunctions.instance.httpsCallable(
+        'computeRideRoute',
+      ).call({
+        'origin': {'latitude': origin.latitude, 'longitude': origin.longitude},
+        'destination': {'latitude': target.latitude, 'longitude': target.longitude},
+      });
+      if (!mounted || generation != routeGeneration || rideActive) return;
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final meters = (data['distanceMeters'] as num).toDouble();
+      final seconds = (data['durationSeconds'] as num).toDouble();
+      final points = _decodeRoute(data['encodedPolyline'] as String);
+      if (points.length < 2 || meters <= 0) throw const FormatException('Empty route');
+      final km = meters / 1000;
+      final base = switch (vehicle) { 'Auto' => 40, 'Cab' => 70, _ => 30 };
+      final rate = switch (vehicle) { 'Auto' => 16, 'Cab' => 22, _ => 12 };
+      final minimum = switch (vehicle) { 'Auto' => 60, 'Cab' => 100, _ => 40 };
+      setState(() {
+        distanceKm = km;
+        fare = math.max(minimum, (base + km * rate).ceil()).toInt();
+        drivingMinutes = (seconds / 60).ceil();
+        roadRoute = points;
+        routeLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || generation != routeGeneration || rideActive) return;
+      setState(() {
+        routeLoading = false;
+        routeError = 'Road route unavailable; fare is an estimate';
+      });
+    }
+  }
+
   void selectDestination(
     LatLng point, {
     String? address,
@@ -422,6 +491,8 @@ class _RiderHomeState extends State<RiderHome> {
       suggestions = [];
       searchError = null;
     });
+
+    _loadRoadRoute(pickup, point);
 
     if (moveCamera) {
       map?.animateCamera(
@@ -698,7 +769,7 @@ class _RiderHomeState extends State<RiderHome> {
                 if (destination != null)
                   Polyline(
                     polylineId: const PolylineId('ride_preview'),
-                    points: [pickup, destination!],
+                    points: roadRoute.isNotEmpty ? roadRoute : [pickup, destination!],
                     width: 5,
                   ),
               },
@@ -990,6 +1061,10 @@ class _RiderHomeState extends State<RiderHome> {
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
+                              if (routeLoading) const Text('Calculating driving route…'),
+                              if (routeError != null) Text(routeError!),
+                              if (drivingMinutes != null)
+                                Text('Approx. $drivingMinutes min driving time'),
                               if (distanceKm > 0)
                                 Text(
                                   '${distanceKm.toStringAsFixed(1)} km estimated distance',
