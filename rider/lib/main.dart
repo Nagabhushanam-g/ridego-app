@@ -77,6 +77,8 @@ class _RiderHomeState extends State<RiderHome> {
   bool noInternet = false;
   bool locationServiceEnabled = true;
   bool selectingPickup = false;
+  int homeTab = 0;
+  bool showBookingMap = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
   StreamSubscription<ServiceStatus>? locationServiceSubscription;
   Timer? destinationSearchDebounce;
@@ -527,6 +529,8 @@ class _RiderHomeState extends State<RiderHome> {
     ).toInt();
 
     setState(() {
+      showBookingMap = true;
+      homeTab = 0;
       destination = point;
       destinationAddress = address ?? '';
       distanceKm = km;
@@ -835,8 +839,87 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
+  Widget _initialHome() => Scaffold(
+    appBar: AppBar(title: const Text('RideGo')),
+    body: SafeArea(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: homeTab == 0 ? Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.my_location),
+            title: Text(pickupAddress.isEmpty ? 'Current pickup location' : pickupAddress,
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: const Text('Tap to change pickup'),
+            onTap: () => setState(() { selectingPickup = true; showBookingMap = true; }),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: destinationSearchController,
+            onChanged: _onDestinationChanged,
+            onSubmitted: searchDestinations,
+            decoration: const InputDecoration(
+              hintText: 'Search destination',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (searching) const LinearProgressIndicator(),
+          if (searchError != null) Text(searchError!),
+          for (final item in suggestions.take(5))
+            ListTile(
+              leading: const Icon(Icons.place_outlined),
+              title: Text(item.label, maxLines: 2),
+              onTap: () => selectPlace(item),
+            ),
+          const Spacer(),
+          Container(
+            height: 130,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('Advertisement', style: TextStyle(fontSize: 12)),
+              Text('Reserved for Google AdMob'),
+            ]),
+          ),
+        ],
+      ) : homeTab == 1 ? ListView(children: [
+        for (final service in const ['Bike', 'Auto', 'Cab'])
+          ListTile(
+            leading: Icon(service == 'Bike' ? Icons.two_wheeler : service == 'Auto' ? Icons.electric_rickshaw : Icons.local_taxi),
+            title: Text('Book a ${service.toLowerCase()}'),
+            onTap: () => setState(() { vehicle = service; homeTab = 0; }),
+          ),
+        const ListTile(leading: Icon(Icons.people_outline), title: Text('Book for others'), subtitle: Text('Coming soon')),
+      ]) : ListView(children: [
+        ListTile(leading: const Icon(Icons.person_outline), title: const Text('My profile'),
+          subtitle: Text(FirebaseAuth.instance.currentUser?.email ?? 'Account details')),
+        ListTile(leading: const Icon(Icons.history), title: const Text('Ride history'),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RiderHistoryScreen()))),
+        const ListTile(leading: Icon(Icons.payments_outlined), title: Text('Payments'), subtitle: Text('Coming soon')),
+        const ListTile(leading: Icon(Icons.card_giftcard), title: Text('Refer and earn'), subtitle: Text('Coming soon')),
+        ListTile(leading: const Icon(Icons.logout), title: const Text('Logout'),
+          onTap: () => FirebaseAuth.instance.signOut()),
+      ]),
+    )),
+    bottomNavigationBar: NavigationBar(
+      selectedIndex: homeTab,
+      onDestinationSelected: (index) => setState(() => homeTab = index),
+      destinations: const [
+        NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
+        NavigationDestination(icon: Icon(Icons.grid_view_outlined), label: 'Menu'),
+        NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
+      ],
+    ),
+  );
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (!showBookingMap && !rideActive && destination == null) return _initialHome();
+    return Scaffold(
         body: Stack(
           children: [
             GoogleMap(
@@ -878,6 +961,21 @@ class _RiderHomeState extends State<RiderHome> {
                   children: [
                     Row(
                       children: [
+                        if (!rideActive) IconButton(
+                          tooltip: 'Back to home',
+                          onPressed: () => setState(() {
+                            showBookingMap = false;
+                            selectingPickup = false;
+                            destination = null;
+                            roadRoute = [];
+                            fare = 0;
+                            distanceKm = 0;
+                            routeGeneration++;
+                            destinationSearchController.clear();
+                            suggestions = [];
+                          }),
+                          icon: const Icon(Icons.arrow_back),
+                        ),
                         IconButton.filledTonal(
                           tooltip: 'Ride history',
                           onPressed: () => Navigator.of(context).push(
@@ -1209,6 +1307,7 @@ class _RiderHomeState extends State<RiderHome> {
           ],
         ),
       );
+  }
 }
 
 class _PlaceSuggestion {
