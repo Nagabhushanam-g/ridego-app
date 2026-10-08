@@ -797,7 +797,8 @@ class _RiderHomeState extends State<RiderHome> {
                   Polyline(
                     polylineId: const PolylineId('ride_preview'),
                     points: roadRoute.isNotEmpty ? roadRoute : [pickup, destination!],
-                    width: 5,
+                    color: const Color(0xFF2563EB),
+                    width: 4,
                   ),
               },
             ),
