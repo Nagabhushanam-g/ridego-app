@@ -1085,7 +1085,8 @@ class _RiderHomeState extends State<RiderHome> {
                               if (destinationAddress.isNotEmpty)
                                 Text(
                                   destinationAddress,
-                                  maxLines: 1,
+                                  maxLines: 2,
+                                  softWrap: true,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
