@@ -51,7 +51,7 @@ jobs:
         run: npm install
 
       - name: Deploy RideGo Cloud Functions
-        run: firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive
+        run: firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive --force
 
       - name: Deployment summary
         run: |
