@@ -271,6 +271,22 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   void _onDestinationChanged(String value) {
+    if (rideActive) return;
+    // Editing a destination invalidates the previous route and fare.
+    if (destination != null) {
+      routeGeneration++;
+      setState(() {
+        destination = null;
+        destinationAddress = '';
+        roadRoute = [];
+        drivingMinutes = null;
+        routeLoading = false;
+        routeError = null;
+        distanceKm = 0;
+        fare = 0;
+        status = 'Choose your destination';
+      });
+    }
     destinationSearchDebounce?.cancel();
     final query = value.trim();
 
