@@ -1,10 +1,12 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 
 initializeApp();
 const db = getFirestore('firestore-db-2');
+const RIDE_SEARCH_TIMEOUT_MS = 5 * 60 * 1000;
 
 async function sendToUser(uid, title, body, rideId, status) {
   if (!uid) return;
@@ -49,6 +51,7 @@ exports.notifyRideStatusChange = onDocumentUpdated({
     started: ['Trip started', 'Your RideGo trip has started.'],
     completed: ['Trip completed', 'Your RideGo trip is complete. Thank you for riding!'],
     cancelled: ['Ride cancelled', 'Your RideGo ride was cancelled.'],
+    expired: ['No drivers available', 'No driver accepted your request. Please try again.'],
   };
   const message = messages[status];
   if (!message) return;
@@ -60,4 +63,27 @@ exports.notifyRideStatusChange = onDocumentUpdated({
     event.params.rideId,
     status,
   );
+});
+
+exports.expireUnmatchedRideRequests = onSchedule('every 1 minutes', async () => {
+  const cutoff = new Date(Date.now() - RIDE_SEARCH_TIMEOUT_MS);
+  const pending = await db.collection('rideRequests')
+    .where('status', '==', 'requested')
+    .where('createdAt', '<=', cutoff)
+    .get();
+
+  await Promise.all(pending.docs.map(async (snapshot) => {
+    await db.runTransaction(async (transaction) => {
+      const fresh = await transaction.get(snapshot.ref);
+      if (!fresh.exists) return;
+      const ride = fresh.data();
+      const createdAt = ride.createdAt?.toMillis?.();
+      if (ride.status !== 'requested' || !createdAt ||
+          createdAt > Date.now() - RIDE_SEARCH_TIMEOUT_MS) return;
+      transaction.update(snapshot.ref, {
+        status: 'expired',
+        expiredAt: new Date(),
+      });
+    });
+  }));
 });
