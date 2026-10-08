@@ -74,6 +74,7 @@ class _RiderHomeState extends State<RiderHome> {
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
   StreamSubscription<ServiceStatus>? locationServiceSubscription;
   Timer? destinationSearchDebounce;
+  Timer? rideExpiryCheck;
   int destinationSearchGeneration = 0;
 
   final TextEditingController destinationSearchController =
@@ -102,6 +103,7 @@ class _RiderHomeState extends State<RiderHome> {
     locationServiceSubscription?.cancel();
     rideSubscription?.cancel();
     destinationSearchDebounce?.cancel();
+    rideExpiryCheck?.cancel();
     destinationSearchController.dispose();
     super.dispose();
   }
@@ -514,8 +516,48 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
+  void scheduleRideExpiryCheck(String id) {
+    rideExpiryCheck?.cancel();
+    rideExpiryCheck = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (!mounted || rideId != id) {
+        rideExpiryCheck?.cancel();
+        return;
+      }
+      try {
+        final ref = rideGoFirestore.collection('rideRequests').doc(id);
+        final snapshot = await ref.get(const GetOptions(source: Source.server));
+        final data = snapshot.data();
+        if (data == null || data['status'] != 'requested') {
+          rideExpiryCheck?.cancel();
+          return;
+        }
+        final created = data['createdAt'];
+        if (created is! Timestamp ||
+            DateTime.now().difference(created.toDate()) < const Duration(minutes: 5)) {
+          return;
+        }
+        await rideGoFirestore.runTransaction((transaction) async {
+          final fresh = await transaction.get(ref);
+          final ride = fresh.data();
+          final timestamp = ride?['createdAt'];
+          if (ride?['status'] != 'requested' || timestamp is! Timestamp ||
+              DateTime.now().difference(timestamp.toDate()) < const Duration(minutes: 5)) {
+            return;
+          }
+          transaction.update(ref, {
+            'status': 'expired',
+            'expiredAt': FieldValue.serverTimestamp(),
+          });
+        });
+      } catch (_) {
+        // Backend scheduler remains authoritative if client is offline or denied.
+      }
+    });
+  }
+
   void watchRide(String id) {
     rideSubscription?.cancel();
+    scheduleRideExpiryCheck(id);
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
         .doc(id)
@@ -527,6 +569,7 @@ class _RiderHomeState extends State<RiderHome> {
       applyRideData(id, data);
 
       if (nextStatus == 'completed' || nextStatus == 'cancelled' || nextStatus == 'expired') {
+        rideExpiryCheck?.cancel();
         Future.delayed(const Duration(seconds: 2), () {
           if (!mounted || rideId != id) return;
           rideSubscription?.cancel();
@@ -592,6 +635,7 @@ class _RiderHomeState extends State<RiderHome> {
       setState(() => status = 'REQUESTING_RIDE');
       await ensureSignedIn();
       await rideSubscription?.cancel();
+      rideExpiryCheck?.cancel();
 
       final ride = await rideGoFirestore.collection('rideRequests').add({
         'riderId': riderUid,
