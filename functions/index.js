@@ -1,5 +1,7 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
@@ -86,4 +88,55 @@ exports.expireUnmatchedRideRequests = onSchedule('every 1 minutes', async () => 
       });
     });
   }));
+});
+
+const routesApiKey = defineSecret('ROUTES_API_KEY');
+
+exports.computeRideRoute = onCall({
+  secrets: [routesApiKey],
+  maxInstances: 10,
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Sign in to request a route.');
+  }
+  const coordinates = ['origin', 'destination'].map((name) => {
+    const value = request.data?.[name];
+    const latitude = Number(value?.latitude);
+    const longitude = Number(value?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+        Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+      throw new HttpsError('invalid-argument', 'Valid route coordinates are required.');
+    }
+    return { latitude, longitude };
+  });
+  const [origin, destination] = coordinates;
+  const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': routesApiKey.value(),
+      'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+    },
+    body: JSON.stringify({
+      origin: { location: { latLng: origin } },
+      destination: { location: { latLng: destination } },
+      travelMode: 'DRIVE',
+      routingPreference: 'TRAFFIC_UNAWARE',
+      polylineQuality: 'HIGH_QUALITY',
+    }),
+  });
+  if (!response.ok) {
+    throw new HttpsError('unavailable', 'Road routing is temporarily unavailable.');
+  }
+  const data = await response.json();
+  const route = data.routes?.[0];
+  if (!route || !Number.isFinite(route.distanceMeters) ||
+      typeof route.polyline?.encodedPolyline !== 'string') {
+    throw new HttpsError('not-found', 'No drivable route was found.');
+  }
+  return {
+    distanceMeters: route.distanceMeters,
+    durationSeconds: Math.round(parseFloat(route.duration || '0s')),
+    encodedPolyline: route.polyline.encodedPolyline,
+  };
 });
