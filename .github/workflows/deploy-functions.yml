@@ -50,6 +50,14 @@ jobs:
         working-directory: functions
         run: npm install
 
+      - name: Configure Routes API Firebase secret
+        env:
+          ROUTES_API_KEY: ${{ secrets.ROUTES_API_KEY }}
+        run: |
+          set -e
+          test -n "$ROUTES_API_KEY" || { echo "ROUTES_API_KEY repository secret is not configured."; exit 1; }
+          printf '%s' "$ROUTES_API_KEY" | firebase functions:secrets:set ROUTES_API_KEY --project "$FIREBASE_PROJECT_ID" --data-file=- --non-interactive
+
       - name: Deploy RideGo Cloud Functions
         run: firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive --force
 
