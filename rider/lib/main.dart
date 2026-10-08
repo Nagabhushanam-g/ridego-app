@@ -528,6 +528,13 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
+  int _fareFor(String type, double km) {
+    final base = switch (type) { 'Auto' => 40, 'Cab' => 70, _ => 30 };
+    final rate = switch (type) { 'Auto' => 16, 'Cab' => 22, _ => 12 };
+    final minimum = switch (type) { 'Auto' => 60, 'Cab' => 100, _ => 40 };
+    return math.max(minimum, (base + km * rate).ceil()).toInt();
+  }
+
   void recalculateFare() {
     if (destination != null) {
       selectDestination(
@@ -853,12 +860,9 @@ class _RiderHomeState extends State<RiderHome> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Pickup', style: TextStyle(fontWeight: FontWeight.w700)),
                                     Text(
-                                      pickupAddress.isEmpty
-                                          ? (locationReady ? 'Current location' : 'Choose pickup location')
-                                          : pickupAddress,
-                                      maxLines: 2,
+                                      'Pickup: ${pickupAddress.isEmpty ? (locationReady ? 'Current location' : 'Choose pickup location') : pickupAddress}',
+                                      maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context).textTheme.bodySmall,
                                     ),
@@ -1029,6 +1033,7 @@ class _RiderHomeState extends State<RiderHome> {
                   ),
                 ),
               ),
+            if (destination != null || rideActive)
             Positioned(
               left: 0,
               right: 0,
@@ -1044,43 +1049,41 @@ class _RiderHomeState extends State<RiderHome> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Choose your ride',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    if (destination != null && !rideActive) ...[
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Choose your ride', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(
-                          value: 'Bike',
-                          label: Text('Bike'),
-                          icon: Icon(Icons.two_wheeler),
+                      const SizedBox(height: 8),
+                      for (final option in const ['Bike', 'Auto', 'Cab'])
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Material(
+                            color: vehicle == option ? Theme.of(context).colorScheme.primaryContainer : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () {
+                                setState(() => vehicle = option);
+                                recalculateFare();
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Icon(option == 'Bike' ? Icons.two_wheeler : option == 'Auto' ? Icons.electric_rickshaw : Icons.local_taxi),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: Text(option, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                    Text('₹${_fareFor(option, distanceKm)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    const SizedBox(width: 8),
+                                    Icon(vehicle == option ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                        ButtonSegment(
-                          value: 'Auto',
-                          label: Text('Auto'),
-                          icon: Icon(Icons.electric_rickshaw),
-                        ),
-                        ButtonSegment(
-                          value: 'Cab',
-                          label: Text('Cab'),
-                          icon: Icon(Icons.local_taxi),
-                        ),
-                      ],
-                      selected: {vehicle},
-                      onSelectionChanged: rideActive
-                          ? null
-                          : (selection) {
-                              setState(() => vehicle = selection.first);
-                              recalculateFare();
-                            },
-                    ),
+                    ],
                     const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
