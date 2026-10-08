@@ -1095,11 +1095,13 @@ class _RiderHomeState extends State<RiderHome> {
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
-                              if (routeLoading) const Text('Calculating driving route…'),
-                              if (routeError != null) Text(routeError!),
-                              if (drivingMinutes != null)
+                              if (destination != null && routeLoading)
+                                const Text('Calculating driving route…'),
+                              if (destination != null && routeError != null)
+                                Text(routeError!),
+                              if (destination != null && drivingMinutes != null)
                                 Text('Approx. $drivingMinutes min driving time'),
-                              if (distanceKm > 0)
+                              if (destination != null && distanceKm > 0)
                                 Text(
                                   '${distanceKm.toStringAsFixed(1)} km estimated distance',
                                   style: Theme.of(context).textTheme.bodySmall,
