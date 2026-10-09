@@ -872,6 +872,8 @@ class _RiderHomeState extends State<RiderHome> {
       pickup = LatLng(chosen['latitude'] as double, chosen['longitude'] as double);
       pickupAddress = chosen['address'] as String;
       locationReady = false;
+      selectingPickup = false;
+      status = 'Pickup selected';
     });
     if (destination != null) recalculateFare();
   }
@@ -1061,8 +1063,8 @@ class _RiderHomeState extends State<RiderHome> {
                                 ),
                               ),
                               TextButton(
-                                onPressed: selectingPickup ? null : _beginPickupSelection,
-                                child: Text(selectingPickup ? 'SELECTING' : 'CHANGE'),
+                                onPressed: rideActive ? null : _openPickupSearch,
+                                child: const Text('CHANGE'),
                               ),
                             ],
                           ),
