@@ -513,6 +513,26 @@ class _DriverHomeState extends State<DriverHome> {
                     ),
                     const SizedBox(height: 8),
                     Text(friendlyDriverStatus),
+                    if (rideId != null &&
+                        pendingRide != null &&
+                        (status == 'DRIVER_ACCEPTED' ||
+                            status == 'DRIVER_ARRIVED' ||
+                            status == 'TRIP_STARTED')) ...[
+                      const SizedBox(height: 8),
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.flag_outlined),
+                        title: const Text('Destination'),
+                        subtitle: Text(
+                          (pendingRide!['destinationAddress'] ?? 'Destination unavailable').toString(),
+                          maxLines: 3,
+                        ),
+                        trailing: Text(
+                          '₹${pendingRide!['fare'] ?? 0}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     if (online &&
                         pendingRide != null &&
