@@ -93,6 +93,9 @@ class _RiderHomeState extends State<RiderHome> {
   List<_PlaceSuggestion> suggestions = [];
   String? riderUid;
   String? rideId;
+  int selectedDriverRating = 0;
+  int? savedDriverRating;
+  bool submittingDriverRating = false;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
 
   @override
@@ -612,6 +615,7 @@ class _RiderHomeState extends State<RiderHome> {
 
     setState(() {
       rideId = id;
+      savedDriverRating = (data['riderRating'] as num?)?.toInt();
       status = riderUiStatus((data['status'] ?? 'requested').toString());
       vehicle = (data['vehicle'] ?? vehicle).toString();
       fare = (data['fare'] as num?)?.toInt() ?? fare;
@@ -1094,6 +1098,38 @@ class _RiderHomeState extends State<RiderHome> {
     });
   }
 
+  Future<void> _submitDriverRating() async {
+    final id = rideId;
+    if (id == null || selectedDriverRating == 0 ||
+        savedDriverRating != null || submittingDriverRating) return;
+    setState(() => submittingDriverRating = true);
+    try {
+      await rideGoFirestore.collection('rideRequests').doc(id).update({
+        'riderRating': selectedDriverRating,
+        'ratedAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
+      setState(() => savedDriverRating = selectedDriverRating);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Thank you for rating your driver!')),
+      );
+    } on FirebaseException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error.code == 'permission-denied'
+            ? 'Rating could not be saved. Please check Firestore rules.'
+            : 'Unable to save rating. Please try again.'),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to save rating. Please try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => submittingDriverRating = false);
+    }
+  }
+
   Widget _completedTripScreen() => Scaffold(
     appBar: AppBar(title: const Text('RideGo')),
     body: SafeArea(
@@ -1129,6 +1165,37 @@ class _RiderHomeState extends State<RiderHome> {
               trailing: Text('₹$fare',
                   style: Theme.of(context).textTheme.titleLarge),
             ),
+            const SizedBox(height: 16),
+            Text(savedDriverRating == null ? 'Rate your driver' : 'Your driver rating',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final rating = savedDriverRating ?? selectedDriverRating;
+                return IconButton(
+                  tooltip: '${index + 1} star${index == 0 ? '' : 's'}',
+                  onPressed: savedDriverRating != null || submittingDriverRating
+                      ? null
+                      : () => setState(() => selectedDriverRating = index + 1),
+                  icon: Icon(index < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber, size: 34),
+                );
+              }),
+            ),
+            if (savedDriverRating == null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: FilledButton.tonal(
+                  onPressed: selectedDriverRating == 0 || submittingDriverRating
+                      ? null : _submitDriverRating,
+                  child: Text(submittingDriverRating ? 'SAVING...' : 'SUBMIT RATING'),
+                ),
+              )
+            else
+              const Text('Thank you for your feedback!',
+                  textAlign: TextAlign.center),
             const Spacer(),
             SizedBox(
               height: 52,
