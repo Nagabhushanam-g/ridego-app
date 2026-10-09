@@ -428,30 +428,20 @@ class _DriverHomeState extends State<DriverHome> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 92, 20, 240),
                       child: Center(
-                        child: Card(
-                          elevation: 0,
-                          color: Colors.white,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 28,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.campaign_outlined, size: 52),
-                                const SizedBox(height: 12),
-                                const Text(
-                                  'Advertising space',
-                                  style: TextStyle(
-                                    fontSize: 20, fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Reserved for future RideGo promotions and advertisements.',
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Image.asset(
+                            'assets/images/ridego_promo.jpg',
+                            fit: BoxFit.contain,
+                            width: double.infinity,
+                            errorBuilder: (_, __, ___) => const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Text(
+                                  'RideGo • Bike  |  Auto  |  Cab',
                                   textAlign: TextAlign.center,
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
