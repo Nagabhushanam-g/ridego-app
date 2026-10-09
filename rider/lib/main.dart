@@ -755,12 +755,13 @@ class _RiderHomeState extends State<RiderHome> {
       return;
     }
     final id = rideId;
-    if (id == null || status != 'SEARCHING_DRIVER') return;
+    if (id == null || !['SEARCHING_DRIVER', 'DRIVER_ACCEPTED', 'DRIVER_ARRIVED'].contains(status)) return;
 
     const reasons = [
       'Changed my plans',
       'Booked by mistake',
       'Waiting too long',
+      'Wrong pickup location',
       'No longer need the ride',
       'Other reason',
     ];
@@ -791,7 +792,7 @@ class _RiderHomeState extends State<RiderHome> {
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(sheetContext),
-                  child: const Text('KEEP SEARCHING'),
+                  child: const Text('KEEP RIDE'),
                 ),
               ],
             ),
@@ -799,7 +800,7 @@ class _RiderHomeState extends State<RiderHome> {
         ),
       ),
     );
-    if (!mounted || reason == null || rideId != id || status != 'SEARCHING_DRIVER') return;
+    if (!mounted || reason == null || rideId != id || !['SEARCHING_DRIVER', 'DRIVER_ACCEPTED', 'DRIVER_ARRIVED'].contains(status)) return;
     try {
       await rideGoFirestore.collection('rideRequests').doc(id).update({
         'status': 'cancelled',
@@ -1606,7 +1607,7 @@ class _RiderHomeState extends State<RiderHome> {
                         child: Text(rideActive ? 'RIDE IN PROGRESS' : routeLoading ? 'CALCULATING ROUTE…' : routeError != null ? 'ROUTE UNAVAILABLE' : 'BOOK RIDE'),
                       ),
                     ),
-                    if (status == 'SEARCHING_DRIVER') ...[
+                    if (['SEARCHING_DRIVER', 'DRIVER_ACCEPTED', 'DRIVER_ARRIVED'].contains(status)) ...[
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
