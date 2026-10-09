@@ -740,8 +740,10 @@ class _RiderHomeState extends State<RiderHome> {
             status = wasExpired ? 'No drivers available. Please try again.' : 'Choose your destination';
             suggestions = [];
             searchError = null;
+            showBookingMap = false;
+            selectingPickup = false;
+            selectingPlace = false;
           });
-          map?.animateCamera(CameraUpdate.newLatLngZoom(pickup, 15));
         });
       }
     });
