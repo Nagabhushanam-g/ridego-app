@@ -346,7 +346,7 @@ class _RiderHomeState extends State<RiderHome> {
     } on PlatformException catch (error) {
       if (!mounted || generation != destinationSearchGeneration) return;
       final code = error.code.trim();
-      final message = (error.message ?? '').replaceAll(RegExp(r'\\s+'), ' ').trim();
+      final message = (error.message ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
       var detail = code.isEmpty ? 'Native Places error' : code;
       if (message.isNotEmpty) detail = '$detail: $message';
       if (detail.length > 220) detail = '${detail.substring(0, 217)}...';
@@ -856,12 +856,12 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   String get shortPickupName {
-    final plusCode = RegExp(r'^[A-Z0-9]{4,8}\\+[A-Z0-9]{2,4}$', caseSensitive: false);
+    final plusCode = RegExp(r'^[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}$', caseSensitive: false);
     final parts = pickupAddress.split(',').map((part) => part.trim()).where((part) => part.isNotEmpty);
     for (final part in parts) {
-      final cleaned = part.replaceFirst(RegExp(r'^[A-Z0-9]{4,8}\\+[A-Z0-9]{2,4}\\s+', caseSensitive: false), '').trim();
+      final cleaned = part.replaceFirst(RegExp(r'^[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}\s+', caseSensitive: false), '').trim();
       if (cleaned.isNotEmpty && !plusCode.hasMatch(cleaned) &&
-          !RegExp(r'^\\d{5,6}$').hasMatch(cleaned) &&
+          !RegExp(r'^\d{5,6}$').hasMatch(cleaned) &&
           cleaned.toLowerCase() != 'india') {
         return cleaned;
       }
@@ -1014,8 +1014,8 @@ class _RiderHomeState extends State<RiderHome> {
 
   int _fareForService(String service) {
     final km = distanceKm;
-    final base = service == 'Bike' ? 20 : service == 'Auto' ? 30 : 50;
-    final perKm = service == 'Bike' ? 14 : service == 'Auto' ? 19 : 28;
+    final base = service == 'Bike' ? 30 : service == 'Auto' ? 40 : 70;
+    final perKm = service == 'Bike' ? 12 : service == 'Auto' ? 16 : 22;
     final minimum = service == 'Bike' ? 40 : service == 'Auto' ? 60 : 100;
     return math.max(minimum, (base + km * perKm).ceil());
   }
