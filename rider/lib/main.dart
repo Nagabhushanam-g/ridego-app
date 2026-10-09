@@ -1130,6 +1130,15 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
+  String get friendlyRideStatus => switch (status) {
+    'DRIVER_ACCEPTED' => 'Driver accepted your ride',
+    'DRIVER_ARRIVED' => 'Driver has arrived',
+    'TRIP_STARTED' => 'Trip in progress',
+    'COMPLETED' => 'Trip completed',
+    'SEARCHING_DRIVER' => 'Searching for a driver…',
+    _ => status,
+  };
+
   Widget _completedTripScreen() => Scaffold(
     appBar: AppBar(title: const Text('RideGo')),
     body: SafeArea(
