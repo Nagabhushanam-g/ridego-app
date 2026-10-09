@@ -1349,7 +1349,6 @@ class _RiderHomeState extends State<RiderHome> {
   }
 }
 
-
 class _PickupSearchPage extends StatefulWidget {
   const _PickupSearchPage();
 
@@ -1483,14 +1482,10 @@ class _PlaceSuggestion {
       MaterialPageRoute(builder: (_) => const _PickupSearchPage()),
     );
     if (!mounted || chosen == null || rideActive) return;
-    final lat = chosen['latitude'] as double;
-    final lng = chosen['longitude'] as double;
     setState(() {
-      pickup = LatLng(lat, lng);
+      pickup = LatLng(chosen['latitude'] as double, chosen['longitude'] as double);
       pickupAddress = chosen['address'] as String;
       locationReady = false;
-      selectingPickup = false;
-      searchingPickup = false;
     });
     if (destination != null) recalculateFare();
   }
