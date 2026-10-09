@@ -399,6 +399,7 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   Widget build(BuildContext context) => Scaffold(
         body: Stack(
+          fit: StackFit.expand,
           children: [
             if (rideId != null &&
                 (status == 'DRIVER_ACCEPTED' ||
@@ -423,24 +424,37 @@ class _DriverHomeState extends State<DriverHome> {
               Positioned.fill(
                 child: ColoredBox(
                   color: const Color(0xFFF1F4F8),
-                  child: Center(
+                  child: SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: 160, left: 24, right: 24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.campaign_outlined, size: 64, color: Colors.blueGrey.shade400),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Advertising space',
-                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                      padding: const EdgeInsets.fromLTRB(20, 92, 20, 240),
+                      child: Center(
+                        child: Card(
+                          elevation: 0,
+                          color: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 28,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.campaign_outlined, size: 52),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Advertising space',
+                                  style: TextStyle(
+                                    fontSize: 20, fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Reserved for future RideGo promotions and advertisements.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Reserved for future RideGo promotions and advertisements.',
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
