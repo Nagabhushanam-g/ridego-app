@@ -757,14 +757,18 @@ class _RiderHomeState extends State<RiderHome> {
     final id = rideId;
     if (id == null || !['SEARCHING_DRIVER', 'DRIVER_ACCEPTED', 'DRIVER_ARRIVED'].contains(status)) return;
 
-    const reasons = [
-      'Changed my plans',
-      'Booked by mistake',
-      'Waiting too long',
-      'Wrong pickup location',
-      'No longer need the ride',
-      'Other reason',
-    ];
+    final afterAcceptance = status == 'DRIVER_ACCEPTED' || status == 'DRIVER_ARRIVED';
+    final driverArrived = status == 'DRIVER_ARRIVED';
+    final reasons = afterAcceptance
+        ? const ['Wrong pickup location']
+        : const [
+            'Changed my plans',
+            'Booked by mistake',
+            'Waiting too long',
+            'Wrong pickup location',
+            'No longer need the ride',
+            'Other reason',
+          ];
     String? selectedReason;
     final reason = await showModalBottomSheet<String>(
       context: context,
@@ -779,6 +783,13 @@ class _RiderHomeState extends State<RiderHome> {
               children: [
                 Text('Why are you cancelling?', style: Theme.of(sheetContext).textTheme.titleLarge),
                 const SizedBox(height: 8),
+                if (driverArrived)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'The driver has arrived at the pickup location. A cancellation penalty may apply under RideGo policy. No penalty is charged automatically by this screen.',
+                    ),
+                  ),
                 for (final option in reasons)
                   RadioListTile<String>(
                     title: Text(option),
@@ -802,11 +813,21 @@ class _RiderHomeState extends State<RiderHome> {
     );
     if (!mounted || reason == null || rideId != id || !['SEARCHING_DRIVER', 'DRIVER_ACCEPTED', 'DRIVER_ARRIVED'].contains(status)) return;
     try {
-      await rideGoFirestore.collection('rideRequests').doc(id).update({
-        'status': 'cancelled',
-        'cancelledAt': FieldValue.serverTimestamp(),
-        'cancellationReason': reason,
-        'cancelledBy': 'rider',
+      await rideGoFirestore.runTransaction((transaction) async {
+        final ref = rideGoFirestore.collection('rideRequests').doc(id);
+        final snapshot = await transaction.get(ref);
+        final currentStatus = snapshot.data()?['status'];
+        if (!snapshot.exists ||
+            !['requested', 'accepted', 'arrived'].contains(currentStatus) ||
+            (currentStatus != 'requested' && reason != 'Wrong pickup location')) {
+          throw StateError('Cancellation is no longer available for this reason');
+        }
+        transaction.update(ref, {
+          'status': 'cancelled',
+          'cancelledAt': FieldValue.serverTimestamp(),
+          'cancellationReason': reason,
+          'cancelledBy': 'rider',
+        });
       });
     } catch (_) {
       if (mounted) {
