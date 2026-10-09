@@ -953,17 +953,20 @@ class _RiderHomeState extends State<RiderHome> {
               onTap: () => selectPlace(item),
             ),
           const Spacer(),
-          Container(
-            height: 130,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset(
+              'assets/images/ridego_promo.jpg',
+              height: 260,
+              width: double.infinity,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Container(
+                height: 260,
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                alignment: Alignment.center,
+                child: const Text('RideGo • Bike  |  Auto  |  Cab'),
+              ),
             ),
-            child: const Column(mainAxisSize: MainAxisSize.min, children: [
-              Text('Advertisement', style: TextStyle(fontSize: 12)),
-              Text('Reserved for Google AdMob'),
-            ]),
           ),
         ],
       ) : homeTab == 1 ? ListView(children: [
