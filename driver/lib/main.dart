@@ -460,10 +460,15 @@ class _DriverHomeState extends State<DriverHome> {
                   ),
                 ),
               ),
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
                   children: [
                     IconButton.filledTonal(
                       tooltip: 'Trip history',
@@ -489,6 +494,7 @@ class _DriverHomeState extends State<DriverHome> {
                         icon: const Icon(Icons.my_location),
                       ),
                   ],
+                  ),
                 ),
               ),
             ),
