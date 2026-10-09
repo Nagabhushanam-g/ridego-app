@@ -400,7 +400,11 @@ class _DriverHomeState extends State<DriverHome> {
   Widget build(BuildContext context) => Scaffold(
         body: Stack(
           children: [
-            GoogleMap(
+            if (rideId != null &&
+                (status == 'DRIVER_ACCEPTED' ||
+                    status == 'DRIVER_ARRIVED' ||
+                    status == 'TRIP_STARTED'))
+              GoogleMap(
               initialCameraPosition:
                   CameraPosition(target: location, zoom: 14),
               myLocationEnabled: locationReady,
@@ -414,6 +418,34 @@ class _DriverHomeState extends State<DriverHome> {
                 ),
               },
             ),
+            if (rideId == null ||
+                !['DRIVER_ACCEPTED', 'DRIVER_ARRIVED', 'TRIP_STARTED'].contains(status))
+              Positioned.fill(
+                child: ColoredBox(
+                  color: const Color(0xFFF1F4F8),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 160, left: 24, right: 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.campaign_outlined, size: 64, color: Colors.blueGrey.shade400),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Advertising space',
+                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Reserved for future RideGo promotions and advertisements.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -436,10 +468,12 @@ class _DriverHomeState extends State<DriverHome> {
                         ),
                       ),
                     ),
-                    IconButton.filledTonal(
-                      onPressed: locate,
-                      icon: const Icon(Icons.my_location),
-                    ),
+                    if (rideId != null &&
+                        ['DRIVER_ACCEPTED', 'DRIVER_ARRIVED', 'TRIP_STARTED'].contains(status))
+                      IconButton.filledTonal(
+                        onPressed: locate,
+                        icon: const Icon(Icons.my_location),
+                      ),
                   ],
                 ),
               ),
