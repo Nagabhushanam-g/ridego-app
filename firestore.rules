@@ -61,17 +61,17 @@ service cloud.firestore {
         || (isDriver() && resource.data.status == 'requested')
       );
 
-      // Riders can cancel only rides that have not yet been accepted.
+      // Riders may cancel before the trip starts, including after driver acceptance.
       allow update: if signedIn() && (
         (
           resource.data.riderId == request.auth.uid
-          && resource.data.status == 'requested'
+          && resource.data.status in ['requested', 'accepted', 'arrived']
           && request.resource.data.status == 'cancelled'
           && (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
             || (
               request.resource.data.cancelledBy == 'rider'
-              && request.resource.data.cancellationReason in ['Changed my plans', 'Booked by mistake', 'Waiting too long', 'No longer need the ride', 'Other reason']
+              && request.resource.data.cancellationReason in ['Changed my plans', 'Booked by mistake', 'Waiting too long', 'Wrong pickup location', 'No longer need the ride', 'Other reason']
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'cancellationReason', 'cancelledBy'])
             )
           )
