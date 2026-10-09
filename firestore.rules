@@ -67,6 +67,8 @@ service cloud.firestore {
           resource.data.riderId == request.auth.uid
           && resource.data.status in ['requested', 'accepted', 'arrived']
           && request.resource.data.status == 'cancelled'
+          && (resource.data.status == 'requested'
+              || request.resource.data.cancellationReason == 'Wrong pickup location')
           && (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
             || (
