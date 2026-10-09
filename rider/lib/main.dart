@@ -710,7 +710,11 @@ class _RiderHomeState extends State<RiderHome> {
       final nextStatus = (data['status'] ?? 'requested').toString();
       applyRideData(id, data);
 
-      if (nextStatus == 'completed' || nextStatus == 'cancelled' || nextStatus == 'expired') {
+      if (nextStatus == 'completed') {
+        rideExpiryCheck?.cancel();
+        return; // Keep the completed trip visible until the rider acknowledges it.
+      }
+      if (nextStatus == 'cancelled' || nextStatus == 'expired') {
         rideExpiryCheck?.cancel();
         Future.delayed(const Duration(seconds: 2), () {
           if (!mounted || rideId != id) return;
@@ -1067,8 +1071,83 @@ class _RiderHomeState extends State<RiderHome> {
     return math.max(minimum, (base + km * perKm).ceil());
   }
 
+  void _dismissCompletedTrip() {
+    rideSubscription?.cancel();
+    rideSubscription = null;
+    rideExpiryCheck?.cancel();
+    destinationSearchController.clear();
+    setState(() {
+      rideId = null;
+      destination = null;
+      destinationAddress = '';
+      fare = 0;
+      distanceKm = 0;
+      drivingMinutes = null;
+      roadRoute = [];
+      routeLoading = false;
+      routeError = null;
+      routeGeneration++;
+      status = 'Choose your destination';
+      suggestions = [];
+      searchError = null;
+      showBookingMap = false;
+    });
+  }
+
+  Widget _completedTripScreen() => Scaffold(
+    appBar: AppBar(title: const Text('RideGo')),
+    body: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Spacer(),
+            const Icon(Icons.check_circle, size: 80, color: Colors.green),
+            const SizedBox(height: 20),
+            Text('Trip Completed',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 12),
+            const Text('Your ride has been completed successfully.',
+                textAlign: TextAlign.center),
+            const SizedBox(height: 32),
+            if (destinationAddress.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.location_on_outlined),
+                title: const Text('Destination'),
+                subtitle: Text(destinationAddress),
+              ),
+            ListTile(
+              leading: const Icon(Icons.directions_car_outlined),
+              title: Text(vehicle),
+              subtitle: Text('${distanceKm.toStringAsFixed(1)} km'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.payments_outlined),
+              title: const Text('Trip fare'),
+              trailing: Text('₹$fare',
+                  style: Theme.of(context).textTheme.titleLarge),
+            ),
+            const Spacer(),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: _dismissCompletedTrip,
+                child: const Text('BACK TO HOME'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
+    if (rideActive && status == 'COMPLETED') {
+      return _completedTripScreen();
+    }
     if (!rideActive && !showBookingMap) {
       return destination == null ? _initialHome() : _preBookingScreen();
     }
