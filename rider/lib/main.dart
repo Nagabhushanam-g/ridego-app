@@ -546,7 +546,6 @@ class _RiderHomeState extends State<RiderHome> {
     ).toInt();
 
     setState(() {
-      showBookingMap = true;
       homeTab = 0;
       destination = point;
       destinationAddress = address ?? '';
@@ -820,7 +819,7 @@ class _RiderHomeState extends State<RiderHome> {
     if (destination == null || fare <= 0) return;
 
     try {
-      setState(() => status = 'REQUESTING_RIDE');
+      setState(() { status = 'REQUESTING_RIDE'; showBookingMap = true; });
       await ensureSignedIn();
       await rideSubscription?.cancel();
       rideExpiryCheck?.cancel();
@@ -857,9 +856,17 @@ class _RiderHomeState extends State<RiderHome> {
   }
 
   String get shortPickupName {
-    final parts = pickupAddress.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
-    final readable = parts.where((p) => !RegExp(r'^[A-Z0-9]{4}\\+[A-Z0-9]{2,4}$', caseSensitive: false).hasMatch(p)).toList();
-    return readable.isEmpty ? 'Current pickup location' : readable.first;
+    final plusCode = RegExp(r'^[A-Z0-9]{4,8}\\+[A-Z0-9]{2,4}$', caseSensitive: false);
+    final parts = pickupAddress.split(',').map((part) => part.trim()).where((part) => part.isNotEmpty);
+    for (final part in parts) {
+      final cleaned = part.replaceFirst(RegExp(r'^[A-Z0-9]{4,8}\\+[A-Z0-9]{2,4}\\s+', caseSensitive: false), '').trim();
+      if (cleaned.isNotEmpty && !plusCode.hasMatch(cleaned) &&
+          !RegExp(r'^\\d{5,6}$').hasMatch(cleaned) &&
+          cleaned.toLowerCase() != 'india') {
+        return cleaned;
+      }
+    }
+    return 'Choose pickup location';
   }
 
   Future<void> _openPickupSearch() async {
@@ -954,9 +961,70 @@ class _RiderHomeState extends State<RiderHome> {
     ),
   );
 
+  Widget _preBookingScreen() => Scaffold(
+    appBar: AppBar(title: const Text('RideGo')),
+    body: SafeArea(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        ListTile(
+          leading: const Icon(Icons.my_location),
+          title: Text(shortPickupName, maxLines: 1, overflow: TextOverflow.ellipsis),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _openPickupSearch,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: destinationSearchController,
+          onChanged: _onDestinationChanged,
+          onSubmitted: searchDestinations,
+          decoration: const InputDecoration(
+            labelText: 'Destination (tap to change)',
+            prefixIcon: Icon(Icons.search),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        if (searching) const LinearProgressIndicator(),
+        if (searchError != null) Text(searchError!),
+        for (final item in suggestions.take(5))
+          ListTile(
+            leading: const Icon(Icons.place_outlined),
+            title: Text(item.label, maxLines: 2),
+            onTap: () => selectPlace(item),
+          ),
+        const SizedBox(height: 16),
+        const Text('Choose your ride', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        for (final service in const ['Bike', 'Auto', 'Cab'])
+          RadioListTile<String>(
+            title: Text(service),
+            subtitle: Text('₹${_fareForService(service)}'),
+            value: service,
+            groupValue: vehicle,
+            onChanged: (value) { if (value != null) setState(() { vehicle = value; recalculateFare(); }); },
+          ),
+        if (routeLoading) const LinearProgressIndicator(),
+        Text('${distanceKm.toStringAsFixed(1)} km • ${drivingMinutes == null ? "Calculating ETA" : "${drivingMinutes!} min"}'),
+        const Spacer(),
+        SizedBox(height: 52, child: FilledButton(
+          onPressed: destination == null || fare <= 0 || noInternet ? null : book,
+          child: const Text('BOOK RIDE'),
+        )),
+      ]),
+    )),
+  );
+
+  int _fareForService(String service) {
+    final km = distanceKm;
+    final base = service == 'Bike' ? 20 : service == 'Auto' ? 30 : 50;
+    final perKm = service == 'Bike' ? 14 : service == 'Auto' ? 19 : 28;
+    final minimum = service == 'Bike' ? 40 : service == 'Auto' ? 60 : 100;
+    return math.max(minimum, (base + km * perKm).ceil());
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!showBookingMap && !rideActive && destination == null) return _initialHome();
+    if (!rideActive && !showBookingMap) {
+      return destination == null ? _initialHome() : _preBookingScreen();
+    }
     return Scaffold(
         body: Stack(
           children: [
