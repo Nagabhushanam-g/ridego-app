@@ -783,11 +783,13 @@ class _RiderHomeState extends State<RiderHome> {
               children: [
                 Text('Why are you cancelling?', style: Theme.of(sheetContext).textTheme.titleLarge),
                 const SizedBox(height: 8),
-                if (driverArrived)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
+                if (afterAcceptance)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      'The driver has arrived at the pickup location. A cancellation penalty may apply under RideGo policy. No penalty is charged automatically by this screen.',
+                      driverArrived
+                          ? 'Caution: Your driver has arrived. RideGo cancellation policy is the higher of ₹10 or the fare for the driver’s verified distance travelled towards pickup. The amount is not yet available in this version; no penalty will be charged automatically.'
+                          : 'Caution: Your driver has accepted this ride. Cancelling while the driver travels to pickup may incur a penalty: the higher of ₹10 or the fare for verified distance travelled towards pickup. The amount is not yet available in this version; no penalty will be charged automatically.',
                     ),
                   ),
                 for (final option in reasons)
