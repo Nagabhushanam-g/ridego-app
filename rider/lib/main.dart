@@ -399,6 +399,7 @@ class _RiderHomeState extends State<RiderHome> {
         if (destination != null) recalculateFare();
         return;
       }
+      FocusManager.instance.primaryFocus?.unfocus();
       destinationSearchController.text = suggestion.label;
       selectDestination(
         LatLng(lat, lng),
@@ -963,53 +964,99 @@ class _RiderHomeState extends State<RiderHome> {
 
   Widget _preBookingScreen() => Scaffold(
     appBar: AppBar(title: const Text('RideGo')),
-    body: SafeArea(child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        ListTile(
-          leading: const Icon(Icons.my_location),
-          title: Text(shortPickupName, maxLines: 1, overflow: TextOverflow.ellipsis),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: _openPickupSearch,
+    body: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ListView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.my_location),
+                    title: Text(shortPickupName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _openPickupSearch,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: destinationSearchController,
+                    onChanged: _onDestinationChanged,
+                    onSubmitted: searchDestinations,
+                    decoration: const InputDecoration(
+                      labelText: 'Destination (tap to change)',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  if (searching) const LinearProgressIndicator(),
+                  if (searchError != null) Text(searchError!),
+                  for (final item in suggestions.take(5))
+                    ListTile(
+                      leading: const Icon(Icons.place_outlined),
+                      title: Text(item.label, maxLines: 2),
+                      onTap: () => selectPlace(item),
+                    ),
+                  const SizedBox(height: 16),
+                  const Text('Choose your ride', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  for (final service in const ['Bike', 'Auto', 'Cab'])
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Material(
+                        color: vehicle == service
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => setState(() {
+                            vehicle = service;
+                            recalculateFare();
+                          }),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            child: Row(
+                              children: [
+                                Icon(service == 'Bike'
+                                    ? Icons.two_wheeler
+                                    : service == 'Auto'
+                                        ? Icons.local_taxi
+                                        : Icons.directions_car),
+                                const SizedBox(width: 12),
+                                Expanded(child: Text(service, style: const TextStyle(fontSize: 18))),
+                                Text('₹${_fareForService(service)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                                const SizedBox(width: 12),
+                                Icon(vehicle == service ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (routeLoading) const LinearProgressIndicator(),
+                  const SizedBox(height: 12),
+                  Text('${distanceKm.toStringAsFixed(1)} km • ${drivingMinutes == null ? "Calculating ETA" : "${drivingMinutes!} min"}'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: destination == null || fare <= 0 || noInternet ? null : () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  book();
+                },
+                child: const Text('BOOK RIDE'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: destinationSearchController,
-          onChanged: _onDestinationChanged,
-          onSubmitted: searchDestinations,
-          decoration: const InputDecoration(
-            labelText: 'Destination (tap to change)',
-            prefixIcon: Icon(Icons.search),
-            border: OutlineInputBorder(),
-          ),
-        ),
-        if (searching) const LinearProgressIndicator(),
-        if (searchError != null) Text(searchError!),
-        for (final item in suggestions.take(5))
-          ListTile(
-            leading: const Icon(Icons.place_outlined),
-            title: Text(item.label, maxLines: 2),
-            onTap: () => selectPlace(item),
-          ),
-        const SizedBox(height: 16),
-        const Text('Choose your ride', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        for (final service in const ['Bike', 'Auto', 'Cab'])
-          RadioListTile<String>(
-            title: Text(service),
-            subtitle: Text('₹${_fareForService(service)}'),
-            value: service,
-            groupValue: vehicle,
-            onChanged: (value) { if (value != null) setState(() { vehicle = value; recalculateFare(); }); },
-          ),
-        if (routeLoading) const LinearProgressIndicator(),
-        Text('${distanceKm.toStringAsFixed(1)} km • ${drivingMinutes == null ? "Calculating ETA" : "${drivingMinutes!} min"}'),
-        const Spacer(),
-        SizedBox(height: 52, child: FilledButton(
-          onPressed: destination == null || fare <= 0 || noInternet ? null : book,
-          child: const Text('BOOK RIDE'),
-        )),
-      ]),
-    )),
+      ),
+    ),
   );
 
   int _fareForService(String service) {
