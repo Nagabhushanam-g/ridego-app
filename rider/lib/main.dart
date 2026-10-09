@@ -802,7 +802,7 @@ class _RiderHomeState extends State<RiderHome> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to cancel ride. A driver may have accepted it.')),
+          SnackBar(content: Text('Unable to cancel ride. Check Firebase rules or ride status.')),
         );
       }
     }
@@ -1079,7 +1079,16 @@ class _RiderHomeState extends State<RiderHome> {
               initialCameraPosition: CameraPosition(target: pickup, zoom: 14),
               myLocationEnabled: locationReady,
               myLocationButtonEnabled: false,
-              onMapCreated: (controller) => map = controller,
+              onMapCreated: (controller) {
+                map = controller;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || map != controller) return;
+                  final points = roadRoute.isNotEmpty
+                      ? roadRoute
+                      : destination == null ? <LatLng>[] : <LatLng>[pickup, destination!];
+                  _fitRouteOnMap(points);
+                });
+              },
               onTap: rideActive
                   ? null
                   : (point) => selectingPickup
@@ -1101,7 +1110,7 @@ class _RiderHomeState extends State<RiderHome> {
                 if (destination != null)
                   Polyline(
                     polylineId: const PolylineId('ride_preview'),
-                    points: roadRoute.isNotEmpty ? roadRoute : [pickup, destination!],
+                    points: roadRoute,
                     color: const Color(0xFF2563EB),
                     width: 4,
                   ),
