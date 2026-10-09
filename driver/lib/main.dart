@@ -388,6 +388,14 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
+  String get friendlyDriverStatus => switch (status) {
+    'DRIVER_ACCEPTED' => 'Ride accepted — head to pickup',
+    'DRIVER_ARRIVED' => 'Arrived at pickup',
+    'TRIP_STARTED' => 'Trip in progress — head to destination',
+    'COMPLETED' => 'Trip completed',
+    _ => status,
+  };
+
   @override
   Widget build(BuildContext context) => Scaffold(
         body: Stack(
@@ -504,7 +512,7 @@ class _DriverHomeState extends State<DriverHome> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(status),
+                    Text(friendlyDriverStatus),
                     const SizedBox(height: 12),
                     if (online &&
                         pendingRide != null &&
