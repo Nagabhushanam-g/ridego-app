@@ -731,7 +731,7 @@ class _DriverHomeState extends State<DriverHome> {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        'RideGo Driver',
+                        'RideGo Partner',
                         style: TextStyle(
                           fontSize: 21,
                           fontWeight: FontWeight.bold,
