@@ -95,6 +95,7 @@ class _RiderHomeState extends State<RiderHome> {
   String? rideId;
   int selectedDriverRating = 0;
   int? savedDriverRating;
+  String? tripPin;
   bool submittingDriverRating = false;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
 
@@ -613,6 +614,11 @@ class _RiderHomeState extends State<RiderHome> {
     final destinationLng =
         (destinationData?['longitude'] as num?)?.toDouble();
 
+    if (tripPin == null && ['accepted', 'arrived'].contains(data['status'])) {
+      rideGoFirestore.collection('rideRequests').doc(id).collection('private').doc('startPin').get().then((secret) {
+        if (mounted && rideId == id && secret.exists) setState(() => tripPin = secret.data()?['pin']?.toString());
+      }).catchError((_) {});
+    }
     setState(() {
       rideId = id;
       savedDriverRating = (data['riderRating'] as num?)?.toInt();
@@ -859,7 +865,10 @@ class _RiderHomeState extends State<RiderHome> {
       await rideSubscription?.cancel();
       rideExpiryCheck?.cancel();
 
-      final ride = await rideGoFirestore.collection('rideRequests').add({
+      final pin = (100000 + math.Random.secure().nextInt(900000)).toString();
+      final ride = rideGoFirestore.collection('rideRequests').doc();
+      final batch = rideGoFirestore.batch();
+      batch.set(ride, {
         'riderId': riderUid,
         'status': 'requested',
         'vehicle': vehicle,
@@ -876,11 +885,15 @@ class _RiderHomeState extends State<RiderHome> {
         'destinationAddress': destinationAddress,
         'createdAt': FieldValue.serverTimestamp(),
         'driverId': null,
+        'pinRequired': true,
       });
+      batch.set(ride.collection('private').doc('startPin'), {'pin': pin, 'riderId': riderUid});
+      await batch.commit();
 
       if (!mounted) return;
       setState(() {
         rideId = ride.id;
+        tripPin = pin;
         status = 'SEARCHING_DRIVER';
       });
 
@@ -1595,6 +1608,8 @@ class _RiderHomeState extends State<RiderHome> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(status == 'SEARCHING_DRIVER' ? 'Searching for a driver…' : status),
+                              if (tripPin != null && ['DRIVER_ACCEPTED', 'DRIVER_ARRIVED'].contains(status))
+                                SelectableText('START TRIP PIN: $tripPin  •  Share only after driver arrives', style: const TextStyle(fontWeight: FontWeight.bold)),
                               if (destinationAddress.isNotEmpty)
                                 Text(
                                   destinationAddress,
