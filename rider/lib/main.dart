@@ -1233,10 +1233,9 @@ class _RiderHomeState extends State<RiderHome> {
     body: SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: ListView(
           children: [
-            const Spacer(),
+            const SizedBox(height: 16),
             const Icon(Icons.check_circle, size: 80, color: Colors.green),
             const SizedBox(height: 20),
             Text('Trip Completed',
@@ -1303,7 +1302,7 @@ class _RiderHomeState extends State<RiderHome> {
             else
               const Text('Thank you for your feedback!',
                   textAlign: TextAlign.center),
-            const Spacer(),
+            const SizedBox(height: 16),
             SizedBox(
               height: 52,
               child: FilledButton(
