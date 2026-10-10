@@ -140,6 +140,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /paymentReceipts/{rideId} {
+      allow get: if signedIn() && (
+        resource.data.riderId == request.auth.uid
+        || resource.data.driverId == request.auth.uid
+      );
+      allow list, create, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
