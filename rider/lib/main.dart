@@ -660,7 +660,8 @@ class _RiderHomeState extends State<RiderHome> {
         if (rideStatus == 'requested' ||
             rideStatus == 'accepted' ||
             rideStatus == 'arrived' ||
-            rideStatus == 'started') {
+            rideStatus == 'started' ||
+            (rideStatus == 'completed' && doc.data()['paymentStatus'] != 'paid')) {
           active = doc;
           break;
         }
