@@ -49,6 +49,102 @@ service cloud.firestore {
       }
     }
 
+    match /riderTripPins/{uid} {
+      allow get: if isSelf(uid);
+      allow list: if false;
+      allow create: if isSelf(uid)
+        && request.resource.data.riderId == uid
+        && request.resource.data.pin is string
+        && request.resource.data.pin.matches('^[0-9]{4}
+      allow create: if signedIn()
+        && request.resource.data.riderId == request.auth.uid
+        && request.resource.data.status == 'requested'
+        && request.resource.data.driverId == null
+        && request.resource.data.pinRequired == true;
+
+      allow get, list: if signedIn() && (
+        resource.data.riderId == request.auth.uid
+        || resource.data.driverId == request.auth.uid
+        || (isDriver() && resource.data.status == 'requested')
+      );
+
+      // Riders may cancel before the trip starts, including after driver acceptance.
+      allow update: if signedIn() && (
+        (
+          resource.data.riderId == request.auth.uid
+          && resource.data.status in ['requested', 'accepted', 'arrived']
+          && request.resource.data.status == 'cancelled'
+          && (resource.data.status == 'requested'
+              || request.resource.data.cancellationReason == 'Wrong pickup location')
+          && (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+            || (
+              request.resource.data.cancelledBy == 'rider'
+              && request.resource.data.cancellationReason in ['Changed my plans', 'Booked by mistake', 'Waiting too long', 'Wrong pickup location', 'No longer need the ride', 'Other reason']
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'cancellationReason', 'cancelledBy'])
+            )
+          )
+        )
+        ||
+        (
+          resource.data.riderId == request.auth.uid
+          && resource.data.status == 'completed'
+          && request.resource.data.status == 'completed'
+          && request.resource.data.riderRating is int
+          && request.resource.data.riderRating >= 1
+          && request.resource.data.riderRating <= 5
+          && (
+            request.resource.data.ratedAt is timestamp
+            || request.resource.data.ratedAt == request.time
+          )
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['riderRating', 'ratedAt'])
+        )
+        ||
+        (
+          isDriver()
+          && resource.data.status == 'requested'
+          && resource.data.driverId == null
+          && request.resource.data.status == 'accepted'
+          && request.resource.data.driverId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'driverId', 'acceptedAt'])
+        )
+        ||
+        (
+          isDriver()
+          && resource.data.driverId == request.auth.uid
+          && (
+            (resource.data.status == 'accepted' && request.resource.data.status == 'arrived')
+            || (resource.data.status == 'arrived' && request.resource.data.status == 'started'
+              && exists(/databases/$(database)/documents/rideRequests/$(rideId)/pinVerification/verified))
+            || (resource.data.status == 'started' && request.resource.data.status == 'completed')
+          )
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'arrivedAt', 'startedAt', 'completedAt'])
+        )
+      );
+
+      match /pinVerification/{verificationId} {
+        allow create: if verificationId == 'verified' && isDriver()
+          && get(/databases/$(database)/documents/rideRequests/$(rideId)).data.driverId == request.auth.uid
+          && get(/databases/$(database)/documents/rideRequests/$(rideId)).data.status == 'arrived'
+          && request.resource.data.driverId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['pin', 'driverId', 'verifiedAt'])
+          && request.resource.data.pin == get(/databases/$(database)/documents/riderTripPins/$(get(/databases/$(database)/documents/rideRequests/$(rideId)).data.riderId)).data.pin;
+        allow get: if signedIn() && get(/databases/$(database)/documents/rideRequests/$(rideId)).data.driverId == request.auth.uid;
+        allow list, update, delete: if false;
+      }
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+        && request.resource.data.keys().hasOnly(['pin', 'riderId', 'createdAt']);
+      allow update, delete: if false;
+    }
+
     match /rideRequests/{rideId} {
       allow create: if signedIn()
         && request.resource.data.riderId == request.auth.uid
