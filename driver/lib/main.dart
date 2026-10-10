@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'auth.dart';
 import 'history.dart';
 import 'notification_service.dart';
@@ -74,6 +75,7 @@ class _DriverHomeState extends State<DriverHome> {
       await ensureSignedIn();
       await RideGoNotificationService.initialize(context, role: 'driver');
       await restoreActiveRide();
+      await _restoreOnlinePreference();
       await locate();
     });
   }
@@ -159,6 +161,25 @@ class _DriverHomeState extends State<DriverHome> {
       _refreshNavigation();
     } catch (_) {
       // Startup recovery is best-effort; driver can still go online manually.
+    }
+  }
+
+  // Remember an explicit online choice across Android process termination.
+  // This restores the UI and request listener, not background availability.
+  Future<void> _restoreOnlinePreference() async {
+    if (!mounted || hasAssignedRide) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('driver_online_preference') != true || !mounted) return;
+      await _recordAvailability(true);
+      if (!mounted || hasAssignedRide) return;
+      setState(() {
+        online = true;
+        status = 'Online — waiting for rides';
+      });
+      watchRideRequests();
+    } catch (error) {
+      debugPrint('Unable to restore driver online status: $error');
     }
   }
 
@@ -436,6 +457,7 @@ class _DriverHomeState extends State<DriverHome> {
         pendingRide = null;
         rideId = null;
       });
+      await (await SharedPreferences.getInstance()).setBool('driver_online_preference', true);
       watchRideRequests();
     } else {
       try {
@@ -449,6 +471,7 @@ class _DriverHomeState extends State<DriverHome> {
         return;
       }
       if (!mounted) return;
+      await (await SharedPreferences.getInstance()).setBool('driver_online_preference', false);
       await rideSubscription?.cancel();
       rideSubscription = null;
       setState(() {
