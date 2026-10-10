@@ -32,7 +32,7 @@ class RideGoDriver extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'RideGo Driver',
+        title: 'RideGo Partner',
         theme: ThemeData(
           useMaterial3: true,
           colorSchemeSeed: const Color(0xFF1565C0),
@@ -379,6 +379,18 @@ class _DriverHomeState extends State<DriverHome> {
           status == 'DRIVER_ARRIVED' ||
           status == 'TRIP_STARTED');
 
+  // Records explicit availability choices. This is not a crash-safe
+  // presence detector; server-side presence/heartbeat expiry is still needed.
+  Future<void> _recordAvailability(bool value) async {
+    final uid = driverUid;
+    if (uid == null) throw StateError('Driver not signed in');
+    await rideGoFirestore.collection('users').doc(uid).set({
+      'uid': uid,
+      'isOnline': value,
+      'availabilityUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Future<void> toggle() async {
     if (noInternet) {
       if (mounted) {
@@ -407,6 +419,17 @@ class _DriverHomeState extends State<DriverHome> {
       if (!mounted) return;
       if (hasAssignedRide) return;
 
+      try {
+        await _recordAvailability(true);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Unable to go online. Check your connection.')),
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
       setState(() {
         online = true;
         status = 'Online — waiting for rides';
@@ -415,6 +438,17 @@ class _DriverHomeState extends State<DriverHome> {
       });
       watchRideRequests();
     } else {
+      try {
+        await _recordAvailability(false);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Unable to save offline status. Please retry.')),
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
       await rideSubscription?.cancel();
       rideSubscription = null;
       setState(() {
@@ -748,7 +782,7 @@ class _DriverHomeState extends State<DriverHome> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Driver status',
+                          'Partner status',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
