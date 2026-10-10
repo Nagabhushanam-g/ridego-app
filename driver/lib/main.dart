@@ -145,7 +145,8 @@ class _DriverHomeState extends State<DriverHome> {
         final rideStatus = (doc.data()['status'] ?? '').toString();
         if (rideStatus == 'accepted' ||
             rideStatus == 'arrived' ||
-            rideStatus == 'started') {
+            rideStatus == 'started' ||
+            (rideStatus == 'completed' && doc.data()['paymentStatus'] != 'paid')) {
           active = doc;
           break;
         }
