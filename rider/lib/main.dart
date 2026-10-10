@@ -1647,7 +1647,7 @@ class _RiderHomeState extends State<RiderHome> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(status == 'SEARCHING_DRIVER' ? 'Searching for a driver…' : status),
+                              Text(friendlyRideStatus),
                               if (status == 'DRIVER_ARRIVED' && tripPin != null)
                                 Card(child: ListTile(leading: const Icon(Icons.notifications_active, color: Colors.orange),
                                   title: const Text('Driver arrived!'),
