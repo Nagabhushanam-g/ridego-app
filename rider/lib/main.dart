@@ -1307,8 +1307,8 @@ class _RiderHomeState extends State<RiderHome> {
             SizedBox(
               height: 52,
               child: FilledButton(
-                onPressed: _dismissCompletedTrip,
-                child: const Text('BACK TO HOME'),
+                onPressed: paymentStatus == 'paid' ? _dismissCompletedTrip : null,
+                child: Text(paymentStatus == 'paid' ? 'BACK TO HOME' : 'AWAITING CASH PAYMENT'),
               ),
             ),
           ],
