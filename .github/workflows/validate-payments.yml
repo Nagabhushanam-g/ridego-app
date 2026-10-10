@@ -1,0 +1,44 @@
+name: Validate RideGo Payment Branch
+
+on:
+  push:
+    branches:
+      - feature/payments-from-tested-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-analyze:
+    name: Analyze ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [rider, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Fetch Flutter dependencies
+        working-directory: ${{ matrix.app }}
+        run: flutter pub get
+      - name: Analyze Flutter source
+        working-directory: ${{ matrix.app }}
+        run: flutter analyze --no-fatal-infos
+
+  functions-syntax:
+    name: Check Firebase Functions syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: node --check functions/index.js
+      - name: Check package metadata
+        run: node -e "const p=require('./functions/package.json');if(!p.dependencies['firebase-functions'] || !p.dependencies['firebase-admin'])process.exit(1)"
