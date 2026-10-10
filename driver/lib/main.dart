@@ -298,10 +298,27 @@ class _DriverHomeState extends State<DriverHome> {
         .snapshots()
         .listen((snapshot) {
       if (!mounted || !online) return;
-      if (snapshot.docs.isEmpty) {
-        if (rideId != null && status != 'Online — waiting for rides') {
-          return;
+      // A Firestore status of "requested" alone does not mean a ride is
+      // new. Old requests can survive an app update or a missed expiry job.
+      // Never surface cached, undated, assigned, or expired requests.
+      final now = DateTime.now();
+      final eligible = snapshot.docs.where((doc) {
+        final data = doc.data();
+        final createdAt = data['createdAt'];
+        if (createdAt is! Timestamp || data['driverId'] != null) {
+          return false;
         }
+        final age = now.difference(createdAt.toDate());
+        return age >= const Duration(seconds: -30) &&
+            age < const Duration(minutes: 5);
+      }).toList()
+        ..sort((a, b) {
+          final aTime = (a.data()['createdAt'] as Timestamp).toDate();
+          final bTime = (b.data()['createdAt'] as Timestamp).toDate();
+          return bTime.compareTo(aTime);
+        });
+      if (eligible.isEmpty) {
+        if (hasAssignedRide) return;
         setState(() {
           pendingRide = null;
           rideId = null;
@@ -309,7 +326,8 @@ class _DriverHomeState extends State<DriverHome> {
         });
         return;
       }
-      final doc = snapshot.docs.first;
+      final doc = eligible.first;
+      if (hasAssignedRide) return;
       setState(() {
         rideId = doc.id;
         pendingRide = doc.data();
@@ -427,7 +445,14 @@ class _DriverHomeState extends State<DriverHome> {
         if (!snapshot.exists ||
             data == null ||
             data['status'] != 'requested' ||
-            data['driverId'] != null) {
+            data['driverId'] != null ||
+            data['createdAt'] is! Timestamp ||
+            DateTime.now().difference(
+              (data['createdAt'] as Timestamp).toDate(),
+            ) >= const Duration(minutes: 5) ||
+            DateTime.now().difference(
+              (data['createdAt'] as Timestamp).toDate(),
+            ) < const Duration(seconds: -30)) {
           throw StateError('Ride is no longer available');
         }
         transaction.update(ref, {
