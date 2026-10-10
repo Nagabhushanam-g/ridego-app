@@ -106,15 +106,37 @@ class _DriverAuthScreenState extends State<DriverAuthScreen> {
               constraints: const BoxConstraints(maxWidth: 430),
               child: Column(
                 children: [
-                  const Icon(Icons.local_taxi, size: 72),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'RideGo Driver',
-                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/images/ridego_promo.jpg',
+                      height: 190,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                      semanticLabel: 'RideGo bike, auto and cab',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF08783B),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text('RideGo Partner',
+                          style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        const Text('DRIVE • EARN • GROW',
+                          style: TextStyle(color: Colors.white, fontSize: 12, letterSpacing: 1.5)),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    register ? 'Create your driver account' : 'Sign in to RideGo',
+                    register ? 'Create your partner account' : 'Sign in to RideGo Partner',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 28),
