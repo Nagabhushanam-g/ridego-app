@@ -918,8 +918,28 @@ class _RiderHomeState extends State<RiderHome> {
       });
 
       watchRide(ride.id);
-    } catch (_) {
-      if (mounted) setState(() => status = 'Unable to request ride');
+    } on FirebaseException catch (error) {
+      debugPrint('Ride booking Firebase error: ${error.code}: ${error.message}');
+      if (mounted) {
+        setState(() {
+          status = 'Unable to request ride';
+          showBookingMap = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Booking failed (${error.code}): ${error.message ?? 'Please try again'}'),
+        ));
+      }
+    } catch (error) {
+      debugPrint('Ride booking error: $error');
+      if (mounted) {
+        setState(() {
+          status = 'Unable to request ride';
+          showBookingMap = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to request ride. Please try again.')),
+        );
+      }
     }
   }
 
