@@ -65,6 +65,7 @@ class _DriverHomeState extends State<DriverHome> {
   StreamSubscription? rideSubscription;
   Map<String, dynamic>? pendingRide;
   bool noInternet = false;
+  bool confirmingCash = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   @override
@@ -292,6 +293,15 @@ class _DriverHomeState extends State<DriverHome> {
       final data = snapshot.data();
       if (data == null) return;
       final rideStatus = (data['status'] ?? '').toString();
+      if (rideStatus == 'completed' && data['paymentStatus'] != 'paid') {
+        _clearNavigation();
+        setState(() {
+          pendingRide = data;
+          rideId = id;
+          status = 'COMPLETED';
+        });
+        return;
+      }
       if (rideStatus == 'completed' || rideStatus == 'cancelled') {
         _clearNavigation();
         setState(() {
@@ -610,8 +620,7 @@ class _DriverHomeState extends State<DriverHome> {
           _ => status,
         };
         if (nextStatus == 'completed') {
-          pendingRide = null;
-          rideId = null;
+          status = 'COMPLETED';
         }
       });
 
@@ -625,6 +634,43 @@ class _DriverHomeState extends State<DriverHome> {
       }
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to update ride');
+    }
+  }
+
+  Future<void> confirmCashReceived() async {
+    final id = rideId;
+    if (id == null || confirmingCash || noInternet || status != 'COMPLETED') return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm cash received'),
+        content: Text('Have you received ₹${pendingRide?['fare'] ?? 0} in cash from the rider?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('CANCEL')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('YES, RECEIVED')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => confirmingCash = true);
+    try {
+      await FirebaseFunctions.instance.httpsCallable('confirmCashPayment')
+          .call({'rideId': id});
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cash payment recorded successfully.')),
+      );
+    } on FirebaseFunctionsException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? 'Unable to confirm cash payment.')),
+      );
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to confirm payment. Try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => confirmingCash = false);
     }
   }
 
@@ -896,6 +942,19 @@ class _DriverHomeState extends State<DriverHome> {
                           ),
                         ),
                       ),
+                    if (rideId != null && status == 'COMPLETED') ...[
+                      const SizedBox(height: 12),
+                      Text('Collect ₹${pendingRide?['fare'] ?? 0} from the rider'),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: noInternet || confirmingCash ? null : confirmCashReceived,
+                          icon: const Icon(Icons.payments_outlined),
+                          label: Text(confirmingCash ? 'CONFIRMING...' : 'CONFIRM CASH RECEIVED'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
