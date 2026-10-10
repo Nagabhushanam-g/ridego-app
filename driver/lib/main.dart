@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'auth.dart';
 import 'history.dart';
@@ -50,6 +51,11 @@ class _DriverHomeState extends State<DriverHome> {
   GoogleMapController? map;
   LatLng location = const LatLng(17.3850, 78.4867);
   bool locationReady = false;
+  List<LatLng> navigationRoute = [];
+  LatLng? navigationTarget;
+  int navigationGeneration = 0;
+  String? navigationRideId;
+  String? navigationPhase;
   bool online = false;
   String status = 'Offline';
   String? driverUid;
@@ -73,6 +79,7 @@ class _DriverHomeState extends State<DriverHome> {
 
   @override
   void dispose() {
+    navigationGeneration++;
     connectivitySubscription?.cancel();
     rideSubscription?.cancel();
     super.dispose();
@@ -148,9 +155,108 @@ class _DriverHomeState extends State<DriverHome> {
         status = driverUiStatus((active.data()['status'] ?? '').toString());
       });
       watchAssignedRide(active.id);
+      _refreshNavigation();
     } catch (_) {
       // Startup recovery is best-effort; driver can still go online manually.
     }
+  }
+
+  LatLng? _ridePoint(String key) {
+    final value = pendingRide?[key];
+    if (value is! Map) return null;
+    final lat = value['latitude'];
+    final lng = value['longitude'];
+    if (lat is! num || lng is! num) return null;
+    return LatLng(lat.toDouble(), lng.toDouble());
+  }
+
+  List<LatLng> _decodeNavigationPolyline(String encoded) {
+    final points = <LatLng>[];
+    var index = 0, lat = 0, lng = 0;
+    while (index < encoded.length) {
+      final values = <int>[];
+      for (var coordinate = 0; coordinate < 2; coordinate++) {
+        var shift = 0, result = 0, byte = 0;
+        do {
+          if (index >= encoded.length) throw const FormatException('Invalid polyline');
+          byte = encoded.codeUnitAt(index++) - 63;
+          result |= (byte & 0x1f) << shift;
+          shift += 5;
+        } while (byte >= 0x20);
+        values.add((result & 1) != 0 ? ~(result >> 1) : result >> 1);
+      }
+      lat += values[0];
+      lng += values[1];
+      points.add(LatLng(lat / 1e5, lng / 1e5));
+    }
+    return points;
+  }
+
+  Future<void> _frameNavigation(List<LatLng> points) async {
+    final controller = map;
+    if (controller == null || points.isEmpty || !mounted) return;
+    if (points.length == 1) {
+      await controller.animateCamera(CameraUpdate.newLatLngZoom(points.first, 14));
+      return;
+    }
+    var minLat = points.first.latitude, maxLat = minLat;
+    var minLng = points.first.longitude, maxLng = minLng;
+    for (final point in points.skip(1)) {
+      if (point.latitude < minLat) minLat = point.latitude;
+      if (point.latitude > maxLat) maxLat = point.latitude;
+      if (point.longitude < minLng) minLng = point.longitude;
+      if (point.longitude > maxLng) maxLng = point.longitude;
+    }
+    try {
+      await controller.animateCamera(CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(minLat - 0.002, minLng - 0.002),
+          northeast: LatLng(maxLat + 0.002, maxLng + 0.002),
+        ),
+        70,
+      ));
+    } catch (_) {
+      // Map may not have completed its first layout.
+    }
+  }
+
+  void _refreshNavigation() {
+    if (!hasAssignedRide || !locationReady) return;
+    final phase = status == 'TRIP_STARTED' ? 'destination' : 'pickup';
+    final target = _ridePoint(phase);
+    final id = rideId;
+    if (target == null || id == null) return;
+    if (navigationRideId == id && navigationPhase == phase) return;
+    navigationRideId = id;
+    navigationPhase = phase;
+    final generation = ++navigationGeneration;
+    setState(() {
+      navigationTarget = target;
+      navigationRoute = [];
+    });
+    FirebaseFunctions.instance.httpsCallable('computeRideRoute').call({
+      'origin': {'latitude': location.latitude, 'longitude': location.longitude},
+      'destination': {'latitude': target.latitude, 'longitude': target.longitude},
+    }).then((result) async {
+      if (!mounted || generation != navigationGeneration) return;
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final encoded = data['encodedPolyline'];
+      if (encoded is! String) return;
+      final points = _decodeNavigationPolyline(encoded);
+      if (points.length < 2) return;
+      setState(() => navigationRoute = points);
+      await _frameNavigation(points);
+    }).catchError((Object _) {
+      // Keep pickup/destination markers visible if routing is unavailable.
+    });
+  }
+
+  void _clearNavigation() {
+    navigationGeneration++;
+    navigationRideId = null;
+    navigationPhase = null;
+    navigationTarget = null;
+    navigationRoute = [];
   }
 
   void watchAssignedRide(String id) {
@@ -165,6 +271,7 @@ class _DriverHomeState extends State<DriverHome> {
       if (data == null) return;
       final rideStatus = (data['status'] ?? '').toString();
       if (rideStatus == 'completed' || rideStatus == 'cancelled') {
+        _clearNavigation();
         setState(() {
           pendingRide = null;
           rideId = null;
@@ -177,6 +284,7 @@ class _DriverHomeState extends State<DriverHome> {
         pendingRide = data;
         status = driverUiStatus(rideStatus);
       });
+      _refreshNavigation();
     });
   }
 
@@ -236,7 +344,11 @@ class _DriverHomeState extends State<DriverHome> {
         locationReady = true;
         if (!online) status = 'Offline';
       });
-      map?.animateCamera(CameraUpdate.newLatLngZoom(current, 15));
+      if (hasAssignedRide) {
+        _refreshNavigation();
+      } else {
+        map?.animateCamera(CameraUpdate.newLatLngZoom(current, 15));
+      }
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to get current location');
     }
@@ -326,6 +438,7 @@ class _DriverHomeState extends State<DriverHome> {
       if (mounted) {
         setState(() => status = 'DRIVER_ACCEPTED');
         watchAssignedRide(id);
+        _refreshNavigation();
       }
     } catch (_) {
       if (!mounted) return;
@@ -377,6 +490,8 @@ class _DriverHomeState extends State<DriverHome> {
         }
       });
 
+      if (nextStatus == 'started') _refreshNavigation();
+      if (nextStatus == 'completed') _clearNavigation();
       if (nextStatus == 'completed') {
         await Future<void>.delayed(const Duration(seconds: 2));
         if (mounted && online && rideId == null) {
@@ -410,8 +525,29 @@ class _DriverHomeState extends State<DriverHome> {
                   CameraPosition(target: location, zoom: 14),
               myLocationEnabled: locationReady,
               myLocationButtonEnabled: false,
-              onMapCreated: (controller) => map = controller,
+              onMapCreated: (controller) {
+                map = controller;
+                if (navigationRoute.isNotEmpty) {
+                  _frameNavigation(navigationRoute);
+                } else if (navigationTarget != null) {
+                  _frameNavigation([location, navigationTarget!]);
+                }
+              },
+              polylines: navigationRoute.length > 1 ? {
+                Polyline(
+                  polylineId: const PolylineId('driver_navigation'),
+                  points: navigationRoute,
+                  color: const Color(0xFF1565C0),
+                  width: 6,
+                ),
+              } : {},
               markers: {
+                if (navigationTarget != null)
+                  Marker(
+                    markerId: const MarkerId('navigation_target'),
+                    position: navigationTarget!,
+                    infoWindow: InfoWindow(title: status == 'TRIP_STARTED' ? 'Destination' : 'Pickup'),
+                  ),
                 Marker(
                   markerId: const MarkerId('driver'),
                   position: location,
