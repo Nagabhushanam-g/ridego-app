@@ -98,6 +98,8 @@ class _RiderHomeState extends State<RiderHome> {
   String? tripPin;
   bool arrivalBellShown = false;
   bool submittingDriverRating = false;
+  String paymentStatus = 'pending';
+  String? paymentMethod;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
 
   @override
@@ -627,6 +629,8 @@ class _RiderHomeState extends State<RiderHome> {
       }
       vehicle = (data['vehicle'] ?? vehicle).toString();
       fare = (data['fare'] as num?)?.toInt() ?? fare;
+      paymentStatus = (data['paymentStatus'] ?? 'pending').toString();
+      paymentMethod = data['paymentMethod']?.toString();
       distanceKm = (data['distanceKm'] as num?)?.toDouble() ?? distanceKm;
       destinationAddress =
           (data['destinationAddress'] ?? destinationAddress).toString();
@@ -1174,6 +1178,8 @@ class _RiderHomeState extends State<RiderHome> {
       routeError = null;
       routeGeneration++;
       status = 'Choose your destination';
+      paymentStatus = 'pending';
+      paymentMethod = null;
       suggestions = [];
       searchError = null;
       showBookingMap = false;
@@ -1255,6 +1261,15 @@ class _RiderHomeState extends State<RiderHome> {
               title: const Text('Trip fare'),
               trailing: Text('₹$fare',
                   style: Theme.of(context).textTheme.titleLarge),
+            ),
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: Text(paymentStatus == 'paid' ? 'Payment received' : 'Payment pending'),
+              subtitle: Text(paymentStatus == 'paid' && paymentMethod == 'cash'
+                  ? 'Paid by cash to your RideGo Partner'
+                  : 'Please pay your RideGo Partner in cash'),
+              trailing: Icon(paymentStatus == 'paid' ? Icons.check_circle : Icons.schedule,
+                  color: paymentStatus == 'paid' ? Colors.green : Colors.orange),
             ),
             const SizedBox(height: 16),
             Text(savedDriverRating == null ? 'Rate your driver' : 'Your driver rating',
