@@ -16,6 +16,7 @@ dependencies:
   firebase_auth: ^6.1.0
   firebase_messaging: ^16.7.0
   cloud_firestore: ^6.0.0
+  cloud_functions: ^6.0.0
   connectivity_plus: ^6.1.4
 flutter:
   uses-material-design: true
