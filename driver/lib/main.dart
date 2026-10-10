@@ -459,15 +459,38 @@ class _DriverHomeState extends State<DriverHome> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Verify rider trip PIN'),
-        content: TextField(controller: controller, keyboardType: TextInputType.number,
-          maxLength: 6, inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: '6-digit PIN from rider')),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CANCEL')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('VERIFY'))],
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          maxLength: 4,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(labelText: '4-digit PIN from rider'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CANCEL')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('VERIFY')),
+        ],
       ),
     );
     controller.dispose();
-    if (pin == null || !RegExp(r'^\d{6}
+    if (pin == null || pin.length != 4 || !mounted) return;
+    try {
+      final ref = rideGoFirestore.collection('rideRequests').doc(id);
+      await ref.collection('pinVerification').doc('verified').set({
+        'pin': pin,
+        'driverId': driverUid,
+        'verifiedAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted || rideId != id) return;
+      await next();
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Incorrect PIN or verification failed. Ask rider to confirm PIN.')),
+      );
+    }
+  }
+
+  Future<void> next() async {
     if (noInternet) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
