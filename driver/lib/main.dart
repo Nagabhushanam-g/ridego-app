@@ -725,9 +725,9 @@ class _DriverHomeState extends State<DriverHome> {
                             (pendingRide!['vehicle'] ?? 'Ride').toString() + ' request',
                           ),
                           subtitle: Text(
-                            'Pickup nearby • ₹' +
+                            'Fare ₹' +
                                 (pendingRide!['fare'] ?? 0).toString() +
-                                ' • ' +
+                                ' • Trip distance ' +
                                 (pendingRide!['distanceKm'] ?? 0).toString() +
                                 ' km',
                           ),
