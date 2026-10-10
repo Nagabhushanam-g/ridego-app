@@ -53,7 +53,8 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.riderId == request.auth.uid
         && request.resource.data.status == 'requested'
-        && request.resource.data.driverId == null;
+        && request.resource.data.driverId == null
+        && request.resource.data.pinRequired == true;
 
       allow get, list: if signedIn() && (
         resource.data.riderId == request.auth.uid
@@ -107,13 +108,37 @@ service cloud.firestore {
           && resource.data.driverId == request.auth.uid
           && (
             (resource.data.status == 'accepted' && request.resource.data.status == 'arrived')
-            || (resource.data.status == 'arrived' && request.resource.data.status == 'started')
+            || (resource.data.status == 'arrived' && request.resource.data.status == 'started'
+              && exists(/databases/$(database)/documents/rideRequests/$(rideId)/pinVerification/verified))
             || (resource.data.status == 'started' && request.resource.data.status == 'completed')
           )
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'arrivedAt', 'startedAt', 'completedAt'])
         )
       );
 
+      match /private/{secretId} {
+        allow create: if secretId == 'startPin' && isSelf(getAfter(/databases/$(database)/documents/rideRequests/$(rideId)).data.riderId)
+          && request.resource.data.riderId == request.auth.uid
+          && request.resource.data.pin is string
+          && request.resource.data.pin.matches('^[0-9]{6} {
+      allow read, write: if false;
+    }
+  }
+}
+);
+        allow get: if secretId == 'startPin' && isSelf(get(/databases/$(database)/documents/rideRequests/$(rideId)).data.riderId);
+        allow list, update, delete: if false;
+      }
+      match /pinVerification/{verificationId} {
+        allow create: if verificationId == 'verified' && isDriver()
+          && get(/databases/$(database)/documents/rideRequests/$(rideId)).data.driverId == request.auth.uid
+          && get(/databases/$(database)/documents/rideRequests/$(rideId)).data.status == 'arrived'
+          && request.resource.data.driverId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['pin', 'driverId', 'verifiedAt'])
+          && request.resource.data.pin == get(/databases/$(database)/documents/rideRequests/$(rideId)/private/startPin).data.pin;
+        allow get: if signedIn() && get(/databases/$(database)/documents/rideRequests/$(rideId)).data.driverId == request.auth.uid;
+        allow list, update, delete: if false;
+      }
       allow delete: if false;
     }
 
