@@ -1384,11 +1384,23 @@ class _RiderHomeState extends State<RiderHome> {
                         ),
                         const SizedBox(width: 10),
                         const Expanded(
-                          child: Text(
-                            'RideGo',
-                            style: TextStyle(
-                              fontSize: 21,
-                              fontWeight: FontWeight.bold,
+                          child: Text.rich(
+                            TextSpan(
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.bold,
+                                fontStyle: FontStyle.italic,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: 'Ride',
+                                  style: TextStyle(color: Color(0xFF102B57)),
+                                ),
+                                TextSpan(
+                                  text: 'Go',
+                                  style: TextStyle(color: Color(0xFF00A85A)),
+                                ),
+                              ],
                             ),
                           ),
                         ),
