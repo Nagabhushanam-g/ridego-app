@@ -96,6 +96,7 @@ class _RiderHomeState extends State<RiderHome> {
   int selectedDriverRating = 0;
   int? savedDriverRating;
   String? tripPin;
+  bool arrivalBellShown = false;
   bool submittingDriverRating = false;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
 
@@ -614,15 +615,16 @@ class _RiderHomeState extends State<RiderHome> {
     final destinationLng =
         (destinationData?['longitude'] as num?)?.toDouble();
 
-    if (tripPin == null && ['accepted', 'arrived'].contains(data['status'])) {
-      rideGoFirestore.collection('rideRequests').doc(id).collection('private').doc('startPin').get().then((secret) {
-        if (mounted && rideId == id && secret.exists) setState(() => tripPin = secret.data()?['pin']?.toString());
-      }).catchError((_) {});
-    }
     setState(() {
       rideId = id;
       savedDriverRating = (data['riderRating'] as num?)?.toInt();
       status = riderUiStatus((data['status'] ?? 'requested').toString());
+      if (data['status'] == 'arrived' && !arrivalBellShown) {
+        arrivalBellShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🔔 Driver arrived! Tell the driver your 4-digit PIN.')));
+        });
+      }
       vehicle = (data['vehicle'] ?? vehicle).toString();
       fare = (data['fare'] as num?)?.toInt() ?? fare;
       distanceKm = (data['distanceKm'] as num?)?.toDouble() ?? distanceKm;
@@ -661,6 +663,7 @@ class _RiderHomeState extends State<RiderHome> {
       }
 
       if (active == null || !mounted) return;
+      tripPin = await loadPermanentPin();
       applyRideData(active.id, active.data());
       watchRide(active.id);
     } catch (_) {
@@ -848,6 +851,23 @@ class _RiderHomeState extends State<RiderHome> {
     }
   }
 
+  Future<String> loadPermanentPin() async {
+    await ensureSignedIn();
+    final uid = riderUid!;
+    final ref = rideGoFirestore.collection('riderTripPins').doc(uid);
+    return rideGoFirestore.runTransaction((transaction) async {
+      final existing = await transaction.get(ref);
+      if (existing.exists) {
+        final value = existing.data()?['pin']?.toString();
+        if (value != null && value.length == 4) return value;
+        throw StateError('Invalid saved PIN');
+      }
+      final pin = math.Random.secure().nextInt(10000).toString().padLeft(4, '0');
+      transaction.set(ref, {'pin': pin, 'riderId': uid, 'createdAt': FieldValue.serverTimestamp()});
+      return pin;
+    });
+  }
+
   Future<void> book() async {
     if (noInternet) {
       if (mounted) {
@@ -865,7 +885,7 @@ class _RiderHomeState extends State<RiderHome> {
       await rideSubscription?.cancel();
       rideExpiryCheck?.cancel();
 
-      final pin = (100000 + math.Random.secure().nextInt(900000)).toString();
+      final pin = await loadPermanentPin();
       final ride = rideGoFirestore.collection('rideRequests').doc();
       final batch = rideGoFirestore.batch();
       batch.set(ride, {
@@ -887,13 +907,13 @@ class _RiderHomeState extends State<RiderHome> {
         'driverId': null,
         'pinRequired': true,
       });
-      batch.set(ride.collection('private').doc('startPin'), {'pin': pin, 'riderId': riderUid});
       await batch.commit();
 
       if (!mounted) return;
       setState(() {
         rideId = ride.id;
         tripPin = pin;
+        arrivalBellShown = false;
         status = 'SEARCHING_DRIVER';
       });
 
@@ -1608,8 +1628,11 @@ class _RiderHomeState extends State<RiderHome> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(status == 'SEARCHING_DRIVER' ? 'Searching for a driver…' : status),
-                              if (tripPin != null && ['DRIVER_ACCEPTED', 'DRIVER_ARRIVED'].contains(status))
-                                SelectableText('START TRIP PIN: $tripPin  •  Share only after driver arrives', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              if (status == 'DRIVER_ARRIVED' && tripPin != null)
+                                Card(child: ListTile(leading: const Icon(Icons.notifications_active, color: Colors.orange),
+                                  title: const Text('Driver arrived!'),
+                                  subtitle: SelectableText('Tell your driver PIN: $tripPin'),
+                                )),
                               if (destinationAddress.isNotEmpty)
                                 Text(
                                   destinationAddress,
