@@ -140,3 +140,68 @@ exports.computeRideRoute = onCall({
     encodedPolyline: route.polyline.encodedPolyline,
   };
 });
+
+
+/**
+ * Confirm physical cash received for a completed RideGo trip.
+ * The callable is restricted to the assigned Partner. The payment amount is
+ * always taken from the stored ride; clients cannot set or change it.
+ */
+exports.confirmCashPayment = onCall({ maxInstances: 10 }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in as a Partner.');
+  const rideId = request.data?.rideId;
+  if (typeof rideId !== 'string' || !/^[A-Za-z0-9_-]{1,1500}$/.test(rideId)) {
+    throw new HttpsError('invalid-argument', 'A valid ride ID is required.');
+  }
+
+  const profile = await db.collection('profiles').doc(uid).get();
+  if (!profile.exists || profile.get('role') !== 'driver') {
+    throw new HttpsError('permission-denied', 'Only Partners can confirm cash collection.');
+  }
+
+  const rideRef = db.collection('rideRequests').doc(rideId);
+  const receiptRef = db.collection('paymentReceipts').doc(rideId);
+  return db.runTransaction(async (tx) => {
+    const [rideSnap, receiptSnap] = await Promise.all([
+      tx.get(rideRef), tx.get(receiptRef),
+    ]);
+    if (!rideSnap.exists) throw new HttpsError('not-found', 'Ride not found.');
+    const ride = rideSnap.data();
+    if (ride.driverId !== uid) {
+      throw new HttpsError('permission-denied', 'This ride belongs to another Partner.');
+    }
+    if (ride.status !== 'completed') {
+      throw new HttpsError('failed-precondition', 'Complete the trip before collecting cash.');
+    }
+    const amount = ride.fare;
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      throw new HttpsError('failed-precondition', 'The ride fare is invalid.');
+    }
+    if (receiptSnap.exists) {
+      const existing = receiptSnap.data();
+      if (existing.method !== 'cash' || existing.status !== 'paid' ||
+          existing.driverId !== uid || existing.amount !== amount) {
+        throw new HttpsError('already-exists', 'A conflicting payment is already recorded.');
+      }
+      return { rideId, paymentStatus: 'paid', paymentMethod: 'cash',
+        amount, currency: 'INR', receiptId: rideId, alreadyConfirmed: true };
+    }
+    if (ride.paymentStatus && ride.paymentStatus !== 'pending') {
+      throw new HttpsError('already-exists', 'This ride already has a payment.');
+    }
+
+    const now = require('firebase-admin/firestore').FieldValue.serverTimestamp();
+    tx.create(receiptRef, {
+      rideId, riderId: ride.riderId, driverId: uid,
+      amount, currency: 'INR', method: 'cash', status: 'paid',
+      collectedBy: uid, paidAt: now, createdAt: now,
+    });
+    tx.update(rideRef, {
+      paymentMethod: 'cash', paymentStatus: 'paid',
+      paidAt: now, paymentReceiptId: rideId,
+    });
+    return { rideId, paymentStatus: 'paid', paymentMethod: 'cash',
+      amount, currency: 'INR', receiptId: rideId, alreadyConfirmed: false };
+  });
+});
