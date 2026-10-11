@@ -252,7 +252,8 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                       subtitle: Text(
                         '${_date(date)}\n$destination\n$distance km'
                         '${rating == null ? '' : '\nRider rating: $rating/5'}'
-                        '\nPayment: ${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' ? 'Cash received' : 'Not verified'}',
+                        '\nPayment: ${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' ? 'Cash received' : 'Not verified'}'
+                        '${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' && data['paymentReceiptId'] is String ? '\nReceipt: ${data['paymentReceiptId']}' : ''}',
                       ),
                       isThreeLine: true,
                       trailing: const Icon(Icons.check_circle_outline),
