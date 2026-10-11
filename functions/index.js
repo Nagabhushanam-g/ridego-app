@@ -10,7 +10,7 @@ initializeApp();
 const db = getFirestore('firestore-db-2');
 const RIDE_SEARCH_TIMEOUT_MS = 5 * 60 * 1000;
 // Commission policy v1: 10% of confirmed cash fares, rounded to the nearest paise.
-const CASH_COMMISSION_BASIS_POINTS = 1000;
+const { calculateCashEarnings } = require('./commission');
 
 async function sendToUser(uid, title, body, rideId, status) {
   if (!uid) return;
@@ -198,12 +198,13 @@ exports.confirmCashPayment = onCall({ maxInstances: 10 }, async (request) => {
       throw new HttpsError('already-exists', 'This ride already has a payment.');
     }
 
-    const grossPaise = amount * 100;
-    if (!Number.isSafeInteger(grossPaise)) {
+    let earnings;
+    try {
+      earnings = calculateCashEarnings(amount);
+    } catch (error) {
       throw new HttpsError('failed-precondition', 'The fare exceeds supported accounting limits.');
     }
-    const commissionPaise = Math.round(grossPaise * CASH_COMMISSION_BASIS_POINTS / 10000);
-    const partnerNetPaise = grossPaise - commissionPaise;
+    const { grossPaise, commissionBasisPoints, commissionPaise, partnerNetPaise } = earnings;
     const now = require('firebase-admin/firestore').FieldValue.serverTimestamp();
     tx.create(receiptRef, {
       rideId, riderId: ride.riderId, driverId: uid,
@@ -213,12 +214,12 @@ exports.confirmCashPayment = onCall({ maxInstances: 10 }, async (request) => {
     tx.create(earningsRef, {
       rideId, driverId: uid, riderId: ride.riderId,
       currency: 'INR', paymentMethod: 'cash',
-      grossPaise, commissionBasisPoints: CASH_COMMISSION_BASIS_POINTS,
+      grossPaise, commissionBasisPoints,
       commissionPaise, partnerNetPaise,
       settlementStatus: 'not_settled', createdAt: now,
     });
     tx.update(rideRef, {
-      commissionBasisPoints: CASH_COMMISSION_BASIS_POINTS,
+      commissionBasisPoints,
       commissionPaise, partnerNetPaise,
       paymentMethod: 'cash', paymentStatus: 'paid',
       paidAt: now, paymentReceiptId: rideId,
