@@ -40,5 +40,7 @@ jobs:
           node-version: '22'
       - name: Check JavaScript syntax
         run: node --check functions/index.js
+      - name: Test cash commission accounting
+        run: node --test functions/commission.test.js
       - name: Check package metadata
         run: node -e "const p=require('./functions/package.json');if(!p.dependencies['firebase-functions'] || !p.dependencies['firebase-admin'])process.exit(1)"
