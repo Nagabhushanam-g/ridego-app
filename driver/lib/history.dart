@@ -49,7 +49,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
   Future<void> _chooseRange() async {
     final range = await showDateRangePicker(
       context: context,
-      entryMode: DatePickerEntryMode.calendarOnly,
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: DateTimeRange(start: _from, end: _to.isAfter(DateTime.now()) ? DateTime.now() : _to),
