@@ -111,6 +111,17 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
               doc.data()['paymentStatus'] == 'paid').length;
           final awaitingPaymentTrips = trips.length - cashConfirmedTrips;
           final unverifiedFares = totalFares - cashCollected;
+          final accountedCashTrips = trips.where((doc) =>
+              doc.data()['paymentMethod'] == 'cash' &&
+              doc.data()['paymentStatus'] == 'paid' &&
+              doc.data()['commissionPaise'] is int &&
+              doc.data()['partnerNetPaise'] is int).toList();
+          final accountedGrossPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
+              sum + (((doc.data()['fare'] as num?)?.round() ?? 0) * 100));
+          final accountedCommissionPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
+              sum + (doc.data()['commissionPaise'] as int));
+          final accountedNetPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
+              sum + (doc.data()['partnerNetPaise'] as int));
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -207,13 +218,18 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                       const SizedBox(height: 8),
                       Text('Cash collected (gross): ₹$cashCollected'),
                       const SizedBox(height: 4),
-                      const Text('Platform commission: Not configured'),
+                      const Text('RideGo commission policy: 10%'),
                       const SizedBox(height: 4),
-                      const Text('Net Partner earnings: Available after commission setup'),
+                      Text('Accounted cash fares: ₹${(accountedGrossPaise / 100).toStringAsFixed(2)} (${accountedCashTrips.length} trips)'),
+                      const SizedBox(height: 4),
+                      Text('Recorded commission: ₹${(accountedCommissionPaise / 100).toStringAsFixed(2)}'),
+                      const SizedBox(height: 4),
+                      Text('Recorded Partner net: ₹${(accountedNetPaise / 100).toStringAsFixed(2)}'),
                       const SizedBox(height: 8),
                       const Text(
-                        'Cash received is a collection total, not final take-home earnings. '
-                        'No commission percentage or payout amount is assumed.',
+                        'Earnings and commission totals include only trips with backend accounting records. '
+                        'Older confirmed trips are excluded until reviewed. '
+                        'Cash settlement with RideGo is not yet implemented.',
                       ),
                     ],
                   ),
