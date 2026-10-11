@@ -32,3 +32,14 @@ This branch is for payment work; do not deploy until client/server and rules are
 - Verify production Firestore database/rules alignment before deployment.
 - Test completed trip recovery, ratings, PIN validation, cash receipt and UPI failure cases.
 - Build both APKs and test on devices before merging.
+
+
+## Commission and earnings accounting (proposed, not activated)
+- Configure commission in a server-controlled, versioned policy. Do not assume a rate from the app.
+- Snapshot the applicable policy onto each paid ride so later rate changes cannot rewrite past earnings.
+- Store amounts in integer INR minor units when introducing online settlement; avoid floating-point commission math.
+- On a verified payment, create one idempotent ledger entry keyed by ride ID, recording gross fare, commission, net Partner earnings, collection method, and any settlement liability.
+- Cash collected by the Partner is not the same as a platform payout. The ledger must separately track what the Partner holds and what is owed to RideGo.
+- Treat trips predating payment confirmation as unverified; never backfill them as paid based on completion alone.
+- Protect commission settings and earnings ledger from all client writes.
+- Do not activate deductions until the commission percentage, rounding rule, tax handling, and settlement process have been approved.
