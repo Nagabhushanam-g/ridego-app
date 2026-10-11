@@ -129,7 +129,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     final mobile = phone.text.trim();
     final number = vehicleNumber.text.trim().toUpperCase();
     if (user == null) return;
-    if (fullName.length < 2 || !RegExp(r'^[0-9]{10}
+    if (fullName.length < 2 || !RegExp(r'^[0-9]{10}$').hasMatch(mobile) || number.length < 4) {
       setState(() => error = 'Enter your name, valid mobile number, and vehicle number.');
       return;
     }
