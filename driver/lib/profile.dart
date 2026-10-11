@@ -70,8 +70,9 @@ class _DriverProfileGateState extends State<DriverProfileGate> {
 }
 
 class DriverProfileScreen extends StatefulWidget {
-  const DriverProfileScreen({super.key, required this.onSaved});
+  const DriverProfileScreen({super.key, required this.onSaved, this.editing = false});
   final VoidCallback onSaved;
+  final bool editing;
 
   @override
   State<DriverProfileScreen> createState() => _DriverProfileScreenState();
@@ -84,6 +85,35 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   String vehicleType = 'Bike';
   bool saving = false;
   String? error;
+  bool loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.editing) _loadExisting();
+  }
+
+  Future<void> _loadExisting() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => loading = true);
+    try {
+      final doc = await _profilesDb.collection('profiles').doc(uid).get();
+      if (!mounted) return;
+      final data = doc.data();
+      if (data != null) {
+        name.text = (data['fullName'] ?? '').toString();
+        phone.text = (data['phone'] ?? '').toString();
+        vehicleNumber.text = (data['vehicleNumber'] ?? '').toString();
+        final type = (data['vehicleType'] ?? '').toString();
+        if (['Bike', 'Auto', 'Cab'].contains(type)) vehicleType = type;
+      }
+    } catch (_) {
+      if (mounted) setState(() => error = 'Unable to load profile. Please retry.');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -99,7 +129,84 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     final mobile = phone.text.trim();
     final number = vehicleNumber.text.trim().toUpperCase();
     if (user == null) return;
-    if (fullName.length < 2 || mobile.length < 10 || number.length < 4) {
+    if (fullName.length < 2 || !RegExp(r'^[0-9]{10}
+      setState(() => error = 'Enter your name, valid mobile number, and vehicle number.');
+      return;
+    }
+
+    setState(() {
+      saving = true;
+      error = null;
+    });
+
+    try {
+      await _profilesDb.collection('profiles').doc(user.uid).set({
+        'uid': user.uid,
+        'role': 'driver',
+        'fullName': fullName,
+        'phone': mobile,
+        'email': user.email,
+        'vehicleType': vehicleType,
+        'vehicleNumber': number,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      if (mounted) widget.onSaved();
+    } catch (_) {
+      if (mounted) setState(() => error = 'Unable to save profile. Please try again.');
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final email = FirebaseAuth.instance.currentUser?.email ?? '';
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.editing ? 'My Partner Profile' : 'Partner profile')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            if (loading) const LinearProgressIndicator(),
+            const Icon(Icons.local_taxi, size: 72),
+            const SizedBox(height: 12),
+            Text(widget.editing ? 'Edit your Partner details' : 'Complete your Partner profile', textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            TextField(controller: name, textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(labelText: 'Full name', prefixIcon: Icon(Icons.person_outline), border: OutlineInputBorder())),
+            const SizedBox(height: 14),
+            TextField(controller: phone, keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_outlined), border: OutlineInputBorder())),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              value: vehicleType,
+              decoration: const InputDecoration(labelText: 'Vehicle type', border: OutlineInputBorder()),
+              items: const ['Bike', 'Auto', 'Cab']
+                  .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+              onChanged: saving ? null : (v) => setState(() => vehicleType = v ?? vehicleType),
+            ),
+            const SizedBox(height: 14),
+            TextField(controller: vehicleNumber, textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(labelText: 'Vehicle number', prefixIcon: Icon(Icons.confirmation_number_outlined), border: OutlineInputBorder())),
+            const SizedBox(height: 14),
+            Text('Email: $email'),
+            if (error != null) ...[
+              const SizedBox(height: 12),
+              Text(error!, style: const TextStyle(color: Colors.red)),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(height: 50, child: FilledButton(
+              onPressed: saving || loading ? null : save,
+              child: saving ? const CircularProgressIndicator() : Text(widget.editing ? 'SAVE CHANGES' : 'SAVE & CONTINUE'),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+).hasMatch(mobile) || number.length < 4) {
       setState(() => error = 'Enter your name, valid mobile number, and vehicle number.');
       return;
     }
