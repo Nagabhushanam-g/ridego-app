@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'profile.dart';
+import 'history.dart';
 
 /// Profile overview. Verification and payout are intentionally read-only
 /// until their protected backend workflows are implemented.
@@ -93,6 +94,19 @@ class PartnerProfileOverview extends StatelessWidget {
                   label: const Text('EDIT PERSONAL & VEHICLE DETAILS'),
                 ),
               ),
+              section('Trip history', Icons.history, [
+                const Text('Review completed rides, fares, trip distances and rider ratings.'),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DriverHistoryScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('VIEW TRIP HISTORY'),
+                ),
+              ]),
               section('Documents', Icons.description_outlined, [
                 const Text('Driving licence, registration certificate (RC), insurance and applicable permits.'),
                 const SizedBox(height: 6),
