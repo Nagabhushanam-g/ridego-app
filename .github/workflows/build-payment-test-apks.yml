@@ -1,0 +1,297 @@
+name: Build RideGo Payment Test APKs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/payments-from-tested-build
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # -------------------- RIDER --------------------
+      - name: Build Rider APK with permanent signing
+        working-directory: rider
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          FIREBASE_RIDER_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_RIDER_GOOGLE_SERVICES_JSON }}
+          RIDER_KEYSTORE_BASE64: ${{ secrets.RIDER_KEYSTORE_BASE64 }}
+          RIDER_KEYSTORE_PASSWORD: ${{ secrets.RIDER_KEYSTORE_PASSWORD }}
+          RIDER_KEY_ALIAS: ${{ secrets.RIDER_KEY_ALIAS }}
+          RIDER_KEY_PASSWORD: ${{ secrets.RIDER_KEY_PASSWORD }}
+          RIDEGO_KEYSTORE_PATH: ${{ github.workspace }}/rider/android/app/rider-release.jks
+          RIDEGO_KEYSTORE_PASSWORD: ${{ secrets.RIDER_KEYSTORE_PASSWORD }}
+          RIDEGO_KEY_ALIAS: ${{ secrets.RIDER_KEY_ALIAS }}
+          RIDEGO_KEY_PASSWORD: ${{ secrets.RIDER_KEY_PASSWORD }}
+        run: |
+          set -e
+          test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
+          test -n "$FIREBASE_RIDER_GOOGLE_SERVICES_JSON" || { echo "FIREBASE_RIDER_GOOGLE_SERVICES_JSON repository secret is not configured."; exit 1; }
+          test -n "$RIDER_KEYSTORE_BASE64" || { echo "RIDER_KEYSTORE_BASE64 repository secret is not configured."; exit 1; }
+          test -n "$RIDER_KEYSTORE_PASSWORD" || { echo "RIDER_KEYSTORE_PASSWORD repository secret is not configured."; exit 1; }
+          test -n "$RIDER_KEY_ALIAS" || { echo "RIDER_KEY_ALIAS repository secret is not configured."; exit 1; }
+          test -n "$RIDER_KEY_PASSWORD" || { echo "RIDER_KEY_PASSWORD repository secret is not configured."; exit 1; }
+
+          flutter create --platforms=android .
+          flutter pub get
+
+          printf '%s' "$FIREBASE_RIDER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          test -s android/app/google-services.json
+
+          printf '%s' "$RIDER_KEYSTORE_BASE64" | base64 --decode > android/app/rider-release.jks
+          test -s android/app/rider-release.jks
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          settings = Path("android/settings.gradle.kts")
+          s = settings.read_text()
+          if 'id("com.google.gms.google-services")' not in s:
+              s = s.replace(
+                  '    id("org.jetbrains.kotlin.android") version "2.4.0" apply false\n',
+                  '    id("org.jetbrains.kotlin.android") version "2.4.0" apply false\n'
+                  '    id("com.google.gms.google-services") version "4.5.0" apply false\n',
+                  1,
+              )
+          settings.write_text(s)
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+
+          text = re.sub(
+              r'\s*<meta-data\s+android:name="com\.google\.android\.geo\.API_KEY"\s+android:value="[^"]*"\s*/>',
+              '',
+              text,
+          )
+
+          if 'android.permission.ACCESS_FINE_LOCATION' not in text:
+              text = text.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n'
+                  '    <uses-permission android:name="android.permission.INTERNET" />\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
+                  1,
+              )
+
+          marker = 'android:icon="@mipmap/ic_launcher">'
+          if marker not in text:
+              raise SystemExit("Could not find Android application element in Rider manifest.")
+
+          text = text.replace(
+              marker,
+              marker + '\n'
+              '        <meta-data\n'
+              '            android:name="com.google.android.geo.API_KEY"\n'
+              '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
+              1,
+          )
+          manifest.write_text(text)
+
+          gradle = Path("android/app/build.gradle.kts")
+          g = gradle.read_text()
+
+          if 'id("com.google.gms.google-services")' not in g:
+              g = g.replace(
+                  '    id("com.android.application")\n',
+                  '    id("com.android.application")\n'
+                  '    id("com.google.gms.google-services")\n',
+                  1,
+              )
+
+          signing_block = '''android {\n    signingConfigs {\n        create("release") {\n            storeFile = file(System.getenv("RIDEGO_KEYSTORE_PATH"))\n            storePassword = System.getenv("RIDEGO_KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("RIDEGO_KEY_ALIAS")\n            keyPassword = System.getenv("RIDEGO_KEY_PASSWORD")\n        }\n    }\n'''
+          g = g.replace('android {\n', signing_block, 1)
+          g = g.replace(
+              'signingConfig = signingConfigs.getByName("debug")',
+              'signingConfig = signingConfigs.getByName("release")',
+              1,
+          )
+          gradle.write_text(g)
+          PY
+
+          echo "--- Rider configuration check ---"
+          grep -q 'com.google.android.geo.API_KEY' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_COARSE_LOCATION' android/app/src/main/AndroidManifest.xml
+          grep -q 'signingConfigs.getByName("release")' android/app/build.gradle.kts
+          grep -q 'id("com.google.gms.google-services")' android/settings.gradle.kts
+          grep -q 'id("com.google.gms.google-services")' android/app/build.gradle.kts
+          test -s android/app/google-services.json
+          echo "Google Maps metadata: PRESENT"
+          echo "Location permissions: PRESENT"
+          echo "Firebase google-services.json: PRESENT"
+          echo "Firebase Google Services plugin: CONFIGURED"
+          echo "Permanent Rider signing: CONFIGURED"
+          echo "API key value is not printed for security."
+
+          RIDER_CERT_SHA1=$(keytool -list -v -keystore "$RIDEGO_KEYSTORE_PATH" -storepass "$RIDER_KEYSTORE_PASSWORD" -alias "$RIDER_KEY_ALIAS" | awk -F': ' '/SHA1:/{print $2; exit}' | tr -d ':')
+          test -n "$RIDER_CERT_SHA1" || { echo "Could not calculate Rider signing certificate SHA-1."; exit 1; }
+          echo "Rider certificate fingerprint prepared for Places requests."
+
+          flutter build apk --release             --dart-define=GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY"             --dart-define=GOOGLE_MAPS_ANDROID_CERT="$RIDER_CERT_SHA1"
+
+      - name: Verify Rider release signing
+        working-directory: rider/android
+        env:
+          RIDEGO_KEYSTORE_PATH: ${{ github.workspace }}/rider/android/app/rider-release.jks
+          RIDEGO_KEYSTORE_PASSWORD: ${{ secrets.RIDER_KEYSTORE_PASSWORD }}
+          RIDEGO_KEY_ALIAS: ${{ secrets.RIDER_KEY_ALIAS }}
+          RIDEGO_KEY_PASSWORD: ${{ secrets.RIDER_KEY_PASSWORD }}
+        run: ./gradlew signingReport
+
+      # -------------------- DRIVER --------------------
+      - name: Build Driver APK with permanent signing and Firebase
+        working-directory: driver
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          FIREBASE_DRIVER_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_DRIVER_GOOGLE_SERVICES_JSON }}
+          DRIVER_KEYSTORE_BASE64: ${{ secrets.DRIVER_KEYSTORE_BASE64 }}
+          DRIVER_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
+          DRIVER_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
+          DRIVER_KEY_PASSWORD: ${{ secrets.DRIVER_KEY_PASSWORD }}
+          RIDEGO_KEYSTORE_PATH: ${{ github.workspace }}/driver/android/app/driver-release.jks
+          RIDEGO_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
+          RIDEGO_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
+          RIDEGO_KEY_PASSWORD: ${{ secrets.DRIVER_KEY_PASSWORD }}
+        run: |
+          set -e
+          test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY repository secret is not configured."; exit 1; }
+          test -n "$FIREBASE_DRIVER_GOOGLE_SERVICES_JSON" || { echo "FIREBASE_DRIVER_GOOGLE_SERVICES_JSON repository secret is not configured."; exit 1; }
+          test -n "$DRIVER_KEYSTORE_BASE64" || { echo "DRIVER_KEYSTORE_BASE64 repository secret is not configured."; exit 1; }
+          test -n "$DRIVER_KEYSTORE_PASSWORD" || { echo "DRIVER_KEYSTORE_PASSWORD repository secret is not configured."; exit 1; }
+          test -n "$DRIVER_KEY_ALIAS" || { echo "DRIVER_KEY_ALIAS repository secret is not configured."; exit 1; }
+          test -n "$DRIVER_KEY_PASSWORD" || { echo "DRIVER_KEY_PASSWORD repository secret is not configured."; exit 1; }
+
+          flutter create --platforms=android .
+          flutter pub get
+
+          printf '%s' "$FIREBASE_DRIVER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          test -s android/app/google-services.json
+
+          printf '%s' "$DRIVER_KEYSTORE_BASE64" | base64 --decode > android/app/driver-release.jks
+          test -s android/app/driver-release.jks
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          settings = Path("android/settings.gradle.kts")
+          s = settings.read_text()
+          if 'id("com.google.gms.google-services")' not in s:
+              s = s.replace(
+                  '    id("org.jetbrains.kotlin.android") version "2.4.0" apply false\n',
+                  '    id("org.jetbrains.kotlin.android") version "2.4.0" apply false\n'
+                  '    id("com.google.gms.google-services") version "4.5.0" apply false\n',
+                  1,
+              )
+          settings.write_text(s)
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+
+          text = re.sub(
+              r'\s*<meta-data\s+android:name="com\.google\.android\.geo\.API_KEY"\s+android:value="[^"]*"\s*/>',
+              '',
+              text,
+          )
+
+          if 'android.permission.ACCESS_FINE_LOCATION' not in text:
+              text = text.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n'
+                  '    <uses-permission android:name="android.permission.INTERNET" />\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n'
+                  '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
+                  1,
+              )
+
+          marker = 'android:icon="@mipmap/ic_launcher">'
+          if marker not in text:
+              raise SystemExit("Could not find Android application element in Driver manifest.")
+
+          text = text.replace(
+              marker,
+              marker + '\n'
+              '        <meta-data\n'
+              '            android:name="com.google.android.geo.API_KEY"\n'
+              '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
+              1,
+          )
+          manifest.write_text(text)
+
+          gradle = Path("android/app/build.gradle.kts")
+          g = gradle.read_text()
+
+          if 'id("com.google.gms.google-services")' not in g:
+              g = g.replace(
+                  '    id("com.android.application")\n',
+                  '    id("com.android.application")\n'
+                  '    id("com.google.gms.google-services")\n',
+                  1,
+              )
+
+          signing_block = '''android {\n    signingConfigs {\n        create("release") {\n            storeFile = file(System.getenv("RIDEGO_KEYSTORE_PATH"))\n            storePassword = System.getenv("RIDEGO_KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("RIDEGO_KEY_ALIAS")\n            keyPassword = System.getenv("RIDEGO_KEY_PASSWORD")\n        }\n    }\n'''
+          g = g.replace('android {\n', signing_block, 1)
+          g = g.replace(
+              'signingConfig = signingConfigs.getByName("debug")',
+              'signingConfig = signingConfigs.getByName("release")',
+              1,
+          )
+          gradle.write_text(g)
+          PY
+
+          echo "--- Driver configuration check ---"
+          grep -q 'com.google.android.geo.API_KEY' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_COARSE_LOCATION' android/app/src/main/AndroidManifest.xml
+          grep -q 'signingConfigs.getByName("release")' android/app/build.gradle.kts
+          grep -q 'id("com.google.gms.google-services")' android/settings.gradle.kts
+          grep -q 'id("com.google.gms.google-services")' android/app/build.gradle.kts
+          test -s android/app/google-services.json
+          echo "Google Maps metadata: PRESENT"
+          echo "Location permissions: PRESENT"
+          echo "Firebase google-services.json: PRESENT"
+          echo "Firebase Google Services plugin: CONFIGURED"
+          echo "Permanent Driver signing: CONFIGURED"
+          echo "API key value is not printed for security."
+
+          flutter build apk --release
+
+      - name: Verify Driver release signing
+        working-directory: driver/android
+        env:
+          RIDEGO_KEYSTORE_PATH: ${{ github.workspace }}/driver/android/app/driver-release.jks
+          RIDEGO_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
+          RIDEGO_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
+          RIDEGO_KEY_PASSWORD: ${{ secrets.DRIVER_KEY_PASSWORD }}
+        run: ./gradlew signingReport
+
+      # -------------------- ARTIFACTS --------------------
+      - name: Upload Rider APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-payment-test-rider-apk
+          path: rider/build/app/outputs/flutter-apk/*.apk
+
+      - name: Upload Driver APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-payment-test-partner-apk
+          path: driver/build/app/outputs/flutter-apk/*.apk
