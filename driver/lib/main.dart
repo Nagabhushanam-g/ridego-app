@@ -13,7 +13,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth.dart';
 import 'profile.dart';
 import 'partner_profile_overview.dart';
-import 'history.dart';
 import 'notification_service.dart';
 
 const String rideGoFirestoreDatabaseId = 'firestore-db-2';
@@ -778,14 +777,6 @@ class _DriverHomeState extends State<DriverHome> {
                         ),
                       ),
                       icon: const Icon(Icons.person),
-                    ),
-                    const SizedBox(width: 6),
-                    IconButton(
-                      tooltip: 'Trip history',
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const DriverHistoryScreen()),
-                      ),
-                      icon: const Icon(Icons.history),
                     ),
                     const SizedBox(width: 10),
                     const Expanded(
