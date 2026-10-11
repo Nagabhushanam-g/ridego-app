@@ -106,6 +106,10 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                   && doc.data()['paymentStatus'] == 'paid')
               .fold<int>(0, (sum, doc) =>
                   sum + ((doc.data()['fare'] as num?)?.round() ?? 0));
+          final cashConfirmedTrips = trips.where((doc) =>
+              doc.data()['paymentMethod'] == 'cash' &&
+              doc.data()['paymentStatus'] == 'paid').length;
+          final awaitingPaymentTrips = trips.length - cashConfirmedTrips;
           final unverifiedFares = totalFares - cashCollected;
 
           return ListView(
@@ -178,12 +182,13 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                       Text('Payment summary',
                           style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
-                      Text('Confirmed cash collected: ₹$cashCollected'),
+                      Text('Confirmed cash collections: $cashConfirmedTrips trip(s) • ₹$cashCollected'),
                       const SizedBox(height: 4),
-                      Text('Fares without confirmed cash collection: ₹$unverifiedFares'),
+                      Text('Not confirmed as cash: $awaitingPaymentTrips trip(s) • ₹$unverifiedFares'),
                       const SizedBox(height: 6),
                       const Text(
-                        'Historical fares without payment confirmation are not counted as collected. '
+                        'Unconfirmed amounts may include unpaid, historical, or non-cash rides. '
+                        'They are not counted as cash collected. '
                         'Commission and net earnings are not yet calculated.',
                       ),
                     ],
