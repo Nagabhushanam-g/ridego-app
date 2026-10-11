@@ -147,7 +147,7 @@ class _DriverHomeState extends State<DriverHome> {
         if (rideStatus == 'accepted' ||
             rideStatus == 'arrived' ||
             rideStatus == 'started' ||
-            (rideStatus == 'completed' && doc.data()['paymentStatus'] != 'paid')) {
+            (rideStatus == 'completed' && doc.data()['paymentRequired'] == true && doc.data()['paymentStatus'] != 'paid')) {
           active = doc;
           break;
         }
@@ -295,7 +295,7 @@ class _DriverHomeState extends State<DriverHome> {
       final data = snapshot.data();
       if (data == null) return;
       final rideStatus = (data['status'] ?? '').toString();
-      if (rideStatus == 'completed' && data['paymentStatus'] != 'paid') {
+      if (rideStatus == 'completed' && data['paymentRequired'] == true && data['paymentStatus'] != 'paid') {
         _clearNavigation();
         setState(() {
           pendingRide = data;
@@ -946,7 +946,7 @@ class _DriverHomeState extends State<DriverHome> {
                           ),
                         ),
                       ),
-                    if (rideId != null && status == 'COMPLETED') ...[
+                    if (rideId != null && status == 'COMPLETED' && pendingRide?['paymentRequired'] == true) ...[
                       const SizedBox(height: 12),
                       Text('Collect ₹${pendingRide?['fare'] ?? 0} from the rider'),
                       const SizedBox(height: 8),
