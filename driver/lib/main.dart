@@ -12,6 +12,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth.dart';
 import 'profile.dart';
+import 'partner_profile_overview.dart';
 import 'history.dart';
 import 'notification_service.dart';
 
@@ -773,10 +774,7 @@ class _DriverHomeState extends State<DriverHome> {
                       tooltip: 'My Partner Profile',
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => DriverProfileScreen(
-                            editing: true,
-                            onSaved: () => Navigator.of(context).pop(),
-                          ),
+                          builder: (_) => const PartnerProfileOverview(),
                         ),
                       ),
                       icon: const Icon(Icons.person),
