@@ -35,7 +35,7 @@ This branch is for payment work; do not deploy until client/server and rules are
 
 
 ## Commission and earnings accounting (proposed, not activated)
-- Configure commission in a server-controlled, versioned policy. Do not assume a rate from the app.
+- Commission policy v1 is approved at 10% (1,000 basis points), configured server-side. Changes require a new version.
 - Snapshot the applicable policy onto each paid ride so later rate changes cannot rewrite past earnings.
 - Store amounts in integer INR minor units when introducing online settlement; avoid floating-point commission math.
 - On a verified payment, create one idempotent ledger entry keyed by ride ID, recording gross fare, commission, net Partner earnings, collection method, and any settlement liability.
@@ -43,3 +43,9 @@ This branch is for payment work; do not deploy until client/server and rules are
 - Treat trips predating payment confirmation as unverified; never backfill them as paid based on completion alone.
 - Protect commission settings and earnings ledger from all client writes.
 - Do not activate deductions until the commission percentage, rounding rule, tax handling, and settlement process have been approved.
+
+## Commission implementation status (test branch only)
+- New cash confirmations write a server-owned `partnerEarnings/{rideId}` ledger record in the same transaction as the payment receipt, including integer paise gross, commission and net amounts.
+- The ride document also stores the snapshot amounts for Partner history display. Existing paid trips are not silently backfilled.
+- Ledger settlement status is `not_settled`; no automatic money transfer, collection, payout, or deduction occurs.
+- **Deployment gate:** review and test Firestore security rules, duplicate confirmations, existing receipts, commission rounding and Partner display before deploying the function. The GitHub test build does not deploy Firebase.
