@@ -11,6 +11,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth.dart';
+import 'profile.dart';
 import 'history.dart';
 import 'notification_service.dart';
 
@@ -769,11 +770,24 @@ class _DriverHomeState extends State<DriverHome> {
                   child: Row(
                   children: [
                     IconButton.filledTonal(
+                      tooltip: 'My Partner Profile',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => DriverProfileScreen(
+                            editing: true,
+                            onSaved: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(Icons.person),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
                       tooltip: 'Trip history',
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const DriverHistoryScreen()),
                       ),
-                      icon: const Icon(Icons.person),
+                      icon: const Icon(Icons.history),
                     ),
                     const SizedBox(width: 10),
                     const Expanded(
