@@ -101,6 +101,13 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
             0, (sum, doc) => sum + ((doc.data()['fare'] as num?)?.round() ?? 0),
           );
 
+          final cashCollected = trips
+              .where((doc) => doc.data()['paymentMethod'] == 'cash'
+                  && doc.data()['paymentStatus'] == 'paid')
+              .fold<int>(0, (sum, doc) =>
+                  sum + ((doc.data()['fare'] as num?)?.round() ?? 0));
+          final unverifiedFares = totalFares - cashCollected;
+
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -161,6 +168,28 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Payment summary',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Text('Confirmed cash collected: ₹$cashCollected'),
+                      const SizedBox(height: 4),
+                      Text('Fares without confirmed cash collection: ₹$unverifiedFares'),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Historical fares without payment confirmation are not counted as collected. '
+                        'Commission and net earnings are not yet calculated.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               if (missingDate > 0)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
@@ -193,7 +222,8 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                       title: Text('$vehicle • ₹$fare'),
                       subtitle: Text(
                         '${_date(date)}\n$destination\n$distance km'
-                        '${rating == null ? '' : '\nRider rating: $rating/5'}',
+                        '${rating == null ? '' : '\nRider rating: $rating/5'}'
+                        '\nPayment: ${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' ? 'Cash received' : 'Not verified'}',
                       ),
                       isThreeLine: true,
                       trailing: const Icon(Icons.check_circle_outline),
