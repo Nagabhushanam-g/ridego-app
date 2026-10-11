@@ -187,6 +187,10 @@ exports.confirmCashPayment = onCall({ maxInstances: 10 }, async (request) => {
       return { rideId, paymentStatus: 'paid', paymentMethod: 'cash',
         amount, currency: 'INR', receiptId: rideId, alreadyConfirmed: true };
     }
+    if (ride.paymentMethod && ride.paymentMethod !== 'cash') {
+      throw new HttpsError('failed-precondition',
+          'The rider selected another payment method. Cash confirmation is blocked.');
+    }
     if (ride.paymentStatus && ride.paymentStatus !== 'pending') {
       throw new HttpsError('already-exists', 'This ride already has a payment.');
     }
