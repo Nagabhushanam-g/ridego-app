@@ -174,6 +174,9 @@ exports.confirmCashPayment = onCall({ maxInstances: 10 }, async (request) => {
     if (ride.driverId !== uid) {
       throw new HttpsError('permission-denied', 'This ride belongs to another Partner.');
     }
+    if (ride.paymentRequired !== true) {
+      throw new HttpsError('failed-precondition', 'Historical rides are not eligible for cash collection.');
+    }
     if (ride.status !== 'completed') {
       throw new HttpsError('failed-precondition', 'Complete the trip before collecting cash.');
     }
