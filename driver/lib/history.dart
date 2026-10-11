@@ -195,6 +195,30 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Partner earnings overview',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Text('Cash collected (gross): ₹$cashCollected'),
+                      const SizedBox(height: 4),
+                      const Text('Platform commission: Not configured'),
+                      const SizedBox(height: 4),
+                      const Text('Net Partner earnings: Available after commission setup'),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Cash received is a collection total, not final take-home earnings. '
+                        'No commission percentage or payout amount is assumed.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               if (missingDate > 0)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
