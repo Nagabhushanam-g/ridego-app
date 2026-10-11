@@ -99,6 +99,7 @@ class _RiderHomeState extends State<RiderHome> {
   bool arrivalBellShown = false;
   bool submittingDriverRating = false;
   String paymentStatus = 'pending';
+  bool paymentRequired = false;
   String? paymentMethod;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
 
@@ -630,6 +631,7 @@ class _RiderHomeState extends State<RiderHome> {
       vehicle = (data['vehicle'] ?? vehicle).toString();
       fare = (data['fare'] as num?)?.toInt() ?? fare;
       paymentStatus = (data['paymentStatus'] ?? 'pending').toString();
+      paymentRequired = data['paymentRequired'] == true;
       paymentMethod = data['paymentMethod']?.toString();
       distanceKm = (data['distanceKm'] as num?)?.toDouble() ?? distanceKm;
       destinationAddress =
@@ -661,7 +663,7 @@ class _RiderHomeState extends State<RiderHome> {
             rideStatus == 'accepted' ||
             rideStatus == 'arrived' ||
             rideStatus == 'started' ||
-            (rideStatus == 'completed' && doc.data()['paymentStatus'] != 'paid')) {
+            (rideStatus == 'completed' && doc.data()['paymentRequired'] == true && doc.data()['paymentStatus'] != 'paid')) {
           active = doc;
           break;
         }
@@ -909,6 +911,7 @@ class _RiderHomeState extends State<RiderHome> {
         },
         'destinationAddress': destinationAddress,
         'createdAt': FieldValue.serverTimestamp(),
+        'paymentRequired': true,
         'driverId': null,
         'pinRequired': true,
       });
@@ -1180,6 +1183,7 @@ class _RiderHomeState extends State<RiderHome> {
       routeGeneration++;
       status = 'Choose your destination';
       paymentStatus = 'pending';
+      paymentRequired = false;
       paymentMethod = null;
       suggestions = [];
       searchError = null;
@@ -1264,8 +1268,8 @@ class _RiderHomeState extends State<RiderHome> {
             ),
             ListTile(
               leading: const Icon(Icons.receipt_long_outlined),
-              title: Text(paymentStatus == 'paid' ? 'Payment received' : 'Payment pending'),
-              subtitle: Text(paymentStatus == 'paid' && paymentMethod == 'cash'
+              title: Text(!paymentRequired ? 'Historical trip — no payment required' : paymentStatus == 'paid' ? 'Payment received' : 'Payment pending'),
+              subtitle: Text(!paymentRequired ? 'This older trip is excluded from cash collection' : paymentStatus == 'paid' && paymentMethod == 'cash'
                   ? 'Paid by cash to your RideGo Partner'
                   : 'Please pay your RideGo Partner in cash'),
               trailing: Icon(paymentStatus == 'paid' ? Icons.check_circle : Icons.schedule,
@@ -1306,8 +1310,8 @@ class _RiderHomeState extends State<RiderHome> {
             SizedBox(
               height: 52,
               child: FilledButton(
-                onPressed: paymentStatus == 'paid' ? _dismissCompletedTrip : null,
-                child: Text(paymentStatus == 'paid' ? 'BACK TO HOME' : 'AWAITING CASH PAYMENT'),
+                onPressed: !paymentRequired || paymentStatus == 'paid' ? _dismissCompletedTrip : null,
+                child: Text(!paymentRequired || paymentStatus == 'paid' ? 'BACK TO HOME' : 'AWAITING CASH PAYMENT'),
               ),
             ),
           ],
