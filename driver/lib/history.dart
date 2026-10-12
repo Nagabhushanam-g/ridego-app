@@ -117,7 +117,8 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
               doc.data()['commissionPaise'] is int &&
               doc.data()['partnerNetPaise'] is int).toList();
           final accountedGrossPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
-              sum + (((doc.data()['fare'] as num?)?.round() ?? 0) * 100));
+              sum + ((doc.data()['grossPaise'] as int?) ??
+                  (((doc.data()['fare'] as num?)?.round() ?? 0) * 100)));
           final accountedCommissionPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
               sum + (doc.data()['commissionPaise'] as int));
           final accountedNetPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
@@ -200,7 +201,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                       const Text(
                         'Unconfirmed amounts may include unpaid, historical, or non-cash rides. '
                         'They are not counted as cash collected. '
-                        'Commission and net earnings are not yet calculated.',
+                        'Verified commission and Partner earnings appear separately below.',
                       ),
                     ],
                   ),
@@ -255,6 +256,13 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                   final destination = (data['destinationAddress'] ?? 'Destination not recorded').toString();
                   final rating = (data['riderRating'] as num?)?.toInt();
                   final date = _tripDate(data)!.toLocal();
+                  final isCashPaid = data['paymentStatus'] == 'paid' &&
+                      data['paymentMethod'] == 'cash';
+                  final commissionPaise = data['commissionPaise'];
+                  final partnerNetPaise = data['partnerNetPaise'];
+                  final grossPaise = data['grossPaise'];
+                  final hasAccounting = isCashPaid &&
+                      commissionPaise is int && partnerNetPaise is int;
                   return Card(
                     child: ListTile(
                       leading: CircleAvatar(
@@ -269,7 +277,11 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                         '${_date(date)}\n$destination\n$distance km'
                         '${rating == null ? '' : '\nRider rating: $rating/5'}'
                         '\nPayment: ${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' ? 'Cash received' : 'Not verified'}'
-                        '${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' && data['paymentReceiptId'] is String ? '\nReceipt: ${data['paymentReceiptId']}' : ''}',
+                        '${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' && data['paymentReceiptId'] is String ? '\nReceipt: ${data['paymentReceiptId']}' : ''}'
+                        '${hasAccounting ? '\nAccounted cash fare: ₹${((grossPaise is int ? grossPaise : ((data['fare'] as num?)?.round() ?? 0) * 100) / 100).toStringAsFixed(2)}' : ''}'
+                        '${hasAccounting ? '\nRideGo commission (10%): ₹${(commissionPaise / 100).toStringAsFixed(2)}' : ''}'
+                        '${hasAccounting ? '\nPartner net earnings: ₹${(partnerNetPaise / 100).toStringAsFixed(2)}' : ''}'
+                        '${isCashPaid && !hasAccounting ? '\nHistorical payment — commission not recorded' : ''}',
                       ),
                       isThreeLine: true,
                       trailing: const Icon(Icons.check_circle_outline),
