@@ -21,8 +21,21 @@ class PartnerProfileOverview extends StatelessWidget {
       app: Firebase.app(),
       databaseId: 'firestore-db-2',
     );
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Partner Profile')),
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+      appBar: AppBar(
+        title: const Text('My Partner Profile'),
+        bottom: const TabBar(
+          isScrollable: true,
+          tabs: [
+            Tab(icon: Icon(Icons.person_outline), text: 'Personal'),
+            Tab(icon: Icon(Icons.directions_car_outlined), text: 'Vehicle'),
+            Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Earnings'),
+            Tab(icon: Icon(Icons.description_outlined), text: 'Documents'),
+          ],
+        ),
+      ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: db.collection('profiles').doc(user.uid).snapshots(),
         builder: (context, snapshot) {
@@ -63,23 +76,7 @@ class PartnerProfileOverview extends StatelessWidget {
                 child: Text('$label: $value'),
               );
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              section('Personal details', Icons.person_outline, [
-                const Center(child: CircleAvatar(radius: 30, child: Icon(Icons.person, size: 34))),
-                const SizedBox(height: 8),
-                detail('Full name', field('fullName')),
-                detail('Mobile', field('phone')),
-                detail('Email', user.email ?? 'Not provided'),
-                const Text('Profile photo upload: Coming soon'),
-              ]),
-              section('Vehicle details', Icons.directions_car_outlined, [
-                detail('Vehicle type', field('vehicleType')),
-                detail('Registration number', field('vehicleNumber')),
-                detail('Make and model', field('vehicleModel')),
-              ]),
-              Padding(
+          Widget editButton() => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).push(
@@ -93,68 +90,101 @@ class PartnerProfileOverview extends StatelessWidget {
                   icon: const Icon(Icons.edit_outlined),
                   label: const Text('EDIT PERSONAL & VEHICLE DETAILS'),
                 ),
-              ),
-              section('Trip history', Icons.history, [
-                const Text('Review completed rides, fares, trip distances and rider ratings.'),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DriverHistoryScreen(),
-                    ),
+              );
+
+          Widget tabPage(List<Widget> children) => ListView(
+                padding: const EdgeInsets.all(16),
+                children: children,
+              );
+
+          return TabBarView(
+            children: [
+              tabPage([
+                section('Personal details', Icons.person_outline, [
+                  const Center(child: CircleAvatar(radius: 30, child: Icon(Icons.person, size: 34))),
+                  const SizedBox(height: 8),
+                  detail('Full name', field('fullName')),
+                  detail('Mobile', field('phone')),
+                  detail('Email', user.email ?? 'Not provided'),
+                  const Text('Profile photo upload: Coming soon'),
+                ]),
+                editButton(),
+                section('Account settings', Icons.settings_outlined, [
+                  const Text('Use GO ONLINE / GO OFFLINE on the Partner home screen.'),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Sign out?'),
+                          content: const Text('You will need to sign in again to use RideGo Partner.'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext, false),
+                              child: const Text('CANCEL'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext, true),
+                              child: const Text('SIGN OUT'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        await FirebaseAuth.instance.signOut();
+                        if (context.mounted) Navigator.of(context).pop();
+                      }
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text('SIGN OUT'),
                   ),
-                  icon: const Icon(Icons.receipt_long_outlined),
-                  label: const Text('VIEW TRIP HISTORY'),
-                ),
+                ]),
               ]),
-              section('Documents', Icons.description_outlined, [
-                const Text('Driving licence, registration certificate (RC), insurance and applicable permits.'),
-                const SizedBox(height: 6),
-                const Text('Secure document upload: Coming soon'),
+              tabPage([
+                section('Vehicle details', Icons.directions_car_outlined, [
+                  detail('Vehicle type', field('vehicleType')),
+                  detail('Registration number', field('vehicleNumber')),
+                  detail('Make and model', field('vehicleModel')),
+                ]),
+                editButton(),
               ]),
-              section('Bank and UPI', Icons.account_balance_outlined, [
-                const Text('Payout account configuration: Coming soon'),
-                const Text('Do not enter bank details until secure setup is available.'),
-              ]),
-              section('Verification', Icons.verified_user_outlined, [
-                const Text('Partner document review and approval: Not yet configured'),
-                const Text('Online availability is not an approval status.'),
-              ]),
-              section('Account settings', Icons.settings_outlined, [
-                const Text('Use GO ONLINE / GO OFFLINE on the Partner home screen.'),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (dialogContext) => AlertDialog(
-                        title: const Text('Sign out?'),
-                        content: const Text('You will need to sign in again to use RideGo Partner.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(dialogContext, false),
-                            child: const Text('CANCEL'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(dialogContext, true),
-                            child: const Text('SIGN OUT'),
-                          ),
-                        ],
+              tabPage([
+                section('Trip history and earnings', Icons.account_balance_wallet_outlined, [
+                  const Text('View completed trips, confirmed cash collections, recorded 10% RideGo commission and Partner net earnings.'),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DriverHistoryScreen(),
                       ),
-                    );
-                    if (confirm == true) {
-                      await FirebaseAuth.instance.signOut();
-                      if (context.mounted) Navigator.of(context).pop();
-                    }
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('SIGN OUT'),
-                ),
+                    ),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                    label: const Text('VIEW TRIP HISTORY & EARNINGS'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('Cash settlement and payouts are not yet available.'),
+                ]),
+              ]),
+              tabPage([
+                section('Documents', Icons.description_outlined, [
+                  const Text('Driving licence, registration certificate (RC), insurance and applicable permits.'),
+                  const SizedBox(height: 6),
+                  const Text('Secure document upload: Coming soon'),
+                ]),
+                section('Bank and UPI', Icons.account_balance_outlined, [
+                  const Text('Payout account configuration: Coming soon'),
+                  const Text('Do not enter bank details until secure setup is available.'),
+                ]),
+                section('Verification', Icons.verified_user_outlined, [
+                  const Text('Partner document review and approval: Not yet configured'),
+                  const Text('Online availability is not an approval status.'),
+                ]),
               ]),
             ],
           );
         },
       ),
-    );
+    ));
   }
 }
