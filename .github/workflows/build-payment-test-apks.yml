@@ -289,9 +289,14 @@ jobs:
         with:
           name: ridego-payment-test-rider-apk
           path: rider/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+
+      - name: Verify Partner APK exists before upload
+        run: test -s driver/build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload Driver APK
         uses: actions/upload-artifact@v4
         with:
           name: ridego-payment-test-partner-apk
           path: driver/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
