@@ -46,7 +46,7 @@ jobs:
           print(data["project_info"]["project_id"])
           PY
           )
-          test -n "$PROJECT_ID"
+          test "$PROJECT_ID" = "ridego-af7c3" || { echo "Unexpected Firebase project. Deployment blocked."; exit 1; }
           echo "FIREBASE_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
@@ -54,13 +54,10 @@ jobs:
         working-directory: functions
         run: npm install
 
-      - name: Configure Routes API Firebase secret
-        env:
-          ROUTES_API_KEY: ${{ secrets.ROUTES_API_KEY }}
+      - name: Verify commission unit tests and function syntax
         run: |
-          set -e
-          test -n "$ROUTES_API_KEY" || { echo "ROUTES_API_KEY repository secret is not configured."; exit 1; }
-          printf '%s' "$ROUTES_API_KEY" | firebase functions:secrets:set ROUTES_API_KEY --project "$FIREBASE_PROJECT_ID" --data-file=- --non-interactive
+          node --check functions/index.js
+          node --test functions/commission.test.js
 
       - name: Deploy RideGo Cloud Functions
         run: firebase deploy --only functions:confirmCashPayment --project "$FIREBASE_PROJECT_ID" --non-interactive --force
