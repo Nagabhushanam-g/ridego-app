@@ -49,3 +49,20 @@ This branch is for payment work; do not deploy until client/server and rules are
 - The ride document also stores the snapshot amounts for Partner history display. Existing paid trips are not silently backfilled.
 - Ledger settlement status is `not_settled`; no automatic money transfer, collection, payout, or deduction occurs.
 - **Deployment gate:** review and test Firestore security rules, duplicate confirmations, existing receipts, commission rounding and Partner display before deploying the function. The GitHub test build does not deploy Firebase.
+
+## Pre-deployment approval and test checklist (10% cash commission)
+
+Deployment is **not** authorized by a successful APK build. The existing `.github/workflows/deploy-cash-payment.yml` workflow deploys automatically when its own workflow file is pushed to the feature branch; do not edit or push that workflow merely to prepare deployment. Request explicit approval immediately before triggering any production Firebase function deployment.
+
+1. Confirm the deployed Firebase project is `ridego-af7c3` and the function reads named database `firestore-db-2`.
+2. Confirm current rider and Partner APKs create rides with `paymentRequired: true`; completed historical rides lacking this field remain non-payable.
+3. Verify the caller is authenticated, has a Partner profile, and is assigned to the completed ride. Wrong users and incomplete rides must be rejected.
+4. Confirm ₹100 produces ₹10.00 commission and ₹90.00 Partner net; ₹398 produces ₹39.80 commission and ₹358.20 Partner net. Verify amounts in integer paise.
+5. Confirm the same transaction writes the receipt, one `partnerEarnings/{rideId}` ledger document, and the ride payment/commission snapshot.
+6. Confirm retrying the same cash confirmation returns an already-confirmed result without a second receipt or ledger record. Test simultaneous double taps and network retries.
+7. Confirm legacy test rides cannot be cash-confirmed; they remain in history and do not appear as active payment requests.
+8. Confirm client Firestore rules do not permit direct writes to receipts, earnings ledger, or ride payment/commission fields. The Admin SDK writes these server-side.
+9. Confirm cash settlement is **not automated**. `settlementStatus: not_settled` is a bookkeeping marker, not a transfer.
+10. Only after explicit approval, deploy the single `confirmCashPayment` function, verify its logs, and run one fresh test trip end-to-end on both devices. Preserve rollback details for the prior function version.
+
+**Compatibility warning:** Newly created rides use `paymentRequired: true`. Any older APK still creating rides without this marker will be treated as legacy and will not be eligible for cash confirmation. Both test devices must use the latest APKs before testing.
