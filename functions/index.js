@@ -11,6 +11,7 @@ const db = getFirestore('firestore-db-2');
 const RIDE_SEARCH_TIMEOUT_MS = 5 * 60 * 1000;
 // Commission policy v1: 10% of confirmed cash fares, rounded to the nearest paise.
 const { calculateCashEarnings } = require('./commission');
+const { validateCashConfirmation } = require('./cash_confirmation_policy');
 
 async function sendToUser(uid, title, body, rideId, status) {
   if (!uid) return;
@@ -171,35 +172,11 @@ exports.confirmCashPayment = onCall({ maxInstances: 10 }, async (request) => {
     ]);
     if (!rideSnap.exists) throw new HttpsError('not-found', 'Ride not found.');
     const ride = rideSnap.data();
-    if (ride.driverId !== uid) {
-      throw new HttpsError('permission-denied', 'This ride belongs to another Partner.');
-    }
-    if (ride.paymentRequired !== true) {
-      throw new HttpsError('failed-precondition', 'Historical rides are not eligible for cash collection.');
-    }
-    if (ride.status !== 'completed') {
-      throw new HttpsError('failed-precondition', 'Complete the trip before collecting cash.');
-    }
-    const amount = ride.fare;
-    if (!Number.isSafeInteger(amount) || amount <= 0) {
-      throw new HttpsError('failed-precondition', 'The ride fare is invalid.');
-    }
-    if (receiptSnap.exists) {
-      const existing = receiptSnap.data();
-      if (existing.method !== 'cash' || existing.status !== 'paid' ||
-          existing.driverId !== uid || existing.amount !== amount) {
-        throw new HttpsError('already-exists', 'A conflicting payment is already recorded.');
-      }
-      return { rideId, paymentStatus: 'paid', paymentMethod: 'cash',
-        amount, currency: 'INR', receiptId: rideId, alreadyConfirmed: true };
-    }
-    if (ride.paymentMethod && ride.paymentMethod !== 'cash') {
-      throw new HttpsError('failed-precondition',
-          'The rider selected another payment method. Cash confirmation is blocked.');
-    }
-    if (ride.paymentStatus && ride.paymentStatus !== 'pending') {
-      throw new HttpsError('already-exists', 'This ride already has a payment.');
-    }
+    const policy = validateCashConfirmation({
+      ride, uid, rideId, receipt: receiptSnap.exists ? receiptSnap.data() : null,
+    });
+    if (policy.alreadyConfirmed) return policy.response;
+    const amount = policy.amount;
 
     let earnings;
     try {
