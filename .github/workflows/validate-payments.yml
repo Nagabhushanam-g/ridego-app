@@ -88,7 +88,7 @@ jobs:
       - name: Install Firebase dependencies and CLI
         run: npm --prefix functions install --no-audit --no-fund && npm install --no-save firebase-tools
       - name: Run DigiLocker transaction tests against emulator
-        run: npx firebase emulators:exec --only firestore --project ridego-digilocker-security-test "node --test functions/digilocker_emulator.test.js"
+        run: npx firebase emulators:exec --only firestore --project ridego-digilocker-security-test "node --test functions/digilocker_emulator.test.js functions/digilocker_atomic_emulator.test.js"
 
   profile-rules-emulator:
     name: Test Partner profile security rules
