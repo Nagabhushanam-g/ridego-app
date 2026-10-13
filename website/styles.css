@@ -42,3 +42,19 @@ html{scroll-padding-top:90px}
 @media(max-width:340px){
   .hero .actions{grid-template-columns:1fr}
 }
+
+/* Distinct Rider and Partner showcases, using existing app brand artwork */
+.app-showcase{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.app-art{min-height:205px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;position:relative;overflow:hidden}
+.app-art::before,.app-art::after{content:"";position:absolute;border:2px solid #ffffff8a;border-radius:50%;width:250px;height:250px;pointer-events:none}
+.app-art::after{width:360px;height:360px}
+.app-art img{position:relative;z-index:1;width:112px;height:112px;filter:drop-shadow(0 12px 18px #082d4b30)}
+.app-art-label{position:relative;z-index:1;letter-spacing:.22em;font-weight:900;font-size:.78rem}
+.rider-showcase .app-art{background:linear-gradient(140deg,#d7edff,#9fceff);color:#124a8e}
+.partner-showcase .app-art{background:linear-gradient(140deg,#ddf7e8,#a6e5c3);color:#07693f}
+.app-showcase-content{padding:26px 28px 30px;display:flex;flex-direction:column;align-items:flex-start;flex:1}
+.app-showcase-content h3{font-size:1.7rem;margin:2px 0 8px}
+.app-showcase-content p:not(.eyebrow){flex:1;margin-top:0}
+.app-showcase-content .status{margin-top:12px;line-height:1.5}
+.partner-showcase .status{background:#e5f5eb;color:#11633b}
+@media(max-width:520px){.app-art{min-height:180px}.app-showcase-content{padding:22px}}
