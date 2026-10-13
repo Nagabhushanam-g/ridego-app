@@ -50,7 +50,21 @@ jobs:
               print(f'Validated {html}')
           PY
       - name: Package local browser preview
-        run: zip -r ridego-website-preview.zip website/
+        run: |
+          mkdir -p ridego-website-preview
+          cp website/*.html website/*.css website/*.js ridego-website-preview/
+          cat > ridego-website-preview/OPEN-WEBSITE-FIRST.txt <<'EOF'
+          RIDEGO WEBSITE PREVIEW
+
+          1. Extract the complete ZIP to a normal folder.
+          2. Open index.html from inside the ridego-website-preview folder.
+          3. Do NOT open the HTML files while they are still inside the ZIP.
+          4. The styles.css and script.js files MUST stay beside index.html.
+          5. Open preview.html to run the built-in stylesheet check.
+
+          This is an offline development preview. No booking or payments are available.
+          EOF
+          zip -r ridego-website-preview.zip ridego-website-preview/
       - name: Upload website preview
         uses: actions/upload-artifact@v4
         with:
