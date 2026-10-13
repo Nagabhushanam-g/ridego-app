@@ -21,20 +21,9 @@ class PartnerProfileOverview extends StatelessWidget {
       app: Firebase.app(),
       databaseId: 'firestore-db-2',
     );
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
+    return Scaffold(
       appBar: AppBar(
         title: const Text('My Partner Profile'),
-        bottom: const TabBar(
-          isScrollable: true,
-          tabs: [
-            Tab(icon: Icon(Icons.person_outline), text: 'Personal'),
-            Tab(icon: Icon(Icons.directions_car_outlined), text: 'Vehicle'),
-            Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Earnings'),
-            Tab(icon: Icon(Icons.description_outlined), text: 'Documents'),
-          ],
-        ),
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: db.collection('profiles').doc(user.uid).snapshots(),
@@ -92,14 +81,23 @@ class PartnerProfileOverview extends StatelessWidget {
                 ),
               );
 
-          Widget tabPage(List<Widget> children) => ListView(
-                padding: const EdgeInsets.all(16),
-                children: children,
+          Widget group(String title, IconData icon, List<Widget> children,
+              {bool expanded = false}) => Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ExpansionTile(
+                  initiallyExpanded: expanded,
+                  leading: Icon(icon),
+                  title: Text(title),
+                  childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+                  expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: children,
+                ),
               );
 
-          return TabBarView(
+          return ListView(
+            padding: const EdgeInsets.all(16),
             children: [
-              tabPage([
+              group('Personal', Icons.person_outline, [
                 section('Personal details', Icons.person_outline, [
                   const Center(child: CircleAvatar(radius: 30, child: Icon(Icons.person, size: 34))),
                   const SizedBox(height: 8),
@@ -109,39 +107,31 @@ class PartnerProfileOverview extends StatelessWidget {
                   const Text('Profile photo upload: Coming soon'),
                 ]),
                 editButton(),
-                section('Account settings', Icons.settings_outlined, [
-                  const Text('Use GO ONLINE / GO OFFLINE on the Partner home screen.'),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          title: const Text('Sign out?'),
-                          content: const Text('You will need to sign in again to use RideGo Partner.'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(dialogContext, false),
-                              child: const Text('CANCEL'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(dialogContext, true),
-                              child: const Text('SIGN OUT'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        await FirebaseAuth.instance.signOut();
-                        if (context.mounted) Navigator.of(context).pop();
-                      }
-                    },
-                    icon: const Icon(Icons.logout),
-                    label: const Text('SIGN OUT'),
-                  ),
-                ]),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('Sign out?'),
+                        content: const Text('You will need to sign in again.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+                              child: const Text('CANCEL')),
+                          TextButton(onPressed: () => Navigator.pop(dialogContext, true),
+                              child: const Text('SIGN OUT')),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await FirebaseAuth.instance.signOut();
+                      if (context.mounted) Navigator.of(context).pop();
+                    }
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('SIGN OUT'),
+                ),
               ]),
-              tabPage([
+              group('Vehicle', Icons.directions_car_outlined, [
                 section('Vehicle details', Icons.directions_car_outlined, [
                   detail('Vehicle type', field('vehicleType')),
                   detail('Registration number', field('vehicleNumber')),
@@ -149,69 +139,66 @@ class PartnerProfileOverview extends StatelessWidget {
                 ]),
                 editButton(),
               ]),
-              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: db.collection('rideRequests')
-                    .where('driverId', isEqualTo: user.uid).snapshots(),
-                builder: (context, ridesSnapshot) {
-                  Widget summary;
-                  if (ridesSnapshot.hasError) {
-                    summary = const Text('Unable to load earnings summary. Open Trip History for details.');
-                  } else if (!ridesSnapshot.hasData) {
-                    summary = const LinearProgressIndicator();
-                  } else {
-                    final accounted = ridesSnapshot.data!.docs.where((doc) {
+              group('Earnings', Icons.account_balance_wallet_outlined, [
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: db.collection('rideRequests')
+                      .where('driverId', isEqualTo: user.uid).snapshots(),
+                  builder: (context, ridesSnapshot) {
+                    if (ridesSnapshot.hasError) {
+                      return const Text('Unable to load earnings.');
+                    }
+                    if (!ridesSnapshot.hasData) return const LinearProgressIndicator();
+                    final now = DateTime.now();
+                    final monthTrips = ridesSnapshot.data!.docs.where((doc) {
                       final data = doc.data();
-                      return (data['status'] ?? '').toString().toLowerCase() == 'completed' &&
-                          data['paymentMethod'] == 'cash' &&
+                      if ((data['status'] ?? '').toString().toLowerCase() != 'completed') return false;
+                      final timestamp = data['completedAt'] is Timestamp
+                          ? data['completedAt'] as Timestamp
+                          : data['createdAt'];
+                      if (timestamp is! Timestamp) return false;
+                      final date = timestamp.toDate().toLocal();
+                      return date.year == now.year && date.month == now.month;
+                    }).toList();
+                    final accounted = monthTrips.where((doc) {
+                      final data = doc.data();
+                      return data['paymentMethod'] == 'cash' &&
                           data['paymentStatus'] == 'paid' &&
                           data['commissionPaise'] is int &&
                           data['partnerNetPaise'] is int;
                     }).toList();
-                    final commission = accounted.fold<int>(
-                        0, (sum, doc) => sum + (doc.data()['commissionPaise'] as int));
-                    final net = accounted.fold<int>(
-                        0, (sum, doc) => sum + (doc.data()['partnerNetPaise'] as int));
-                    final gross = accounted.fold<int>(
-                        0, (sum, doc) => sum +
-                            (doc.data()['grossPaise'] is int
-                                ? doc.data()['grossPaise'] as int
-                                : (doc.data()['commissionPaise'] as int) +
-                                    (doc.data()['partnerNetPaise'] as int)));
-                    summary = Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        detail('Accounted cash rides', '${accounted.length}'),
-                        detail('Accounted cash fares', '₹${(gross / 100).toStringAsFixed(2)}'),
-                        detail('RideGo commission (10%)', '₹${(commission / 100).toStringAsFixed(2)}'),
-                        detail('Partner net earnings', '₹${(net / 100).toStringAsFixed(2)}'),
-                        const SizedBox(height: 6),
-                        const Text('All-time recorded cash accounting only. Historical rides without commission records are excluded.'),
-                      ],
-                    );
-                  }
-                  return tabPage([
-                    section('Partner earnings summary', Icons.account_balance_wallet_outlined, [
-                      summary,
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const DriverHistoryScreen(),
-                      ),
-                    ),
-                    icon: const Icon(Icons.receipt_long_outlined),
-                    label: const Text('VIEW TRIP HISTORY & EARNINGS'),
+                    final commission = accounted.fold<int>(0,
+                        (sum, doc) => sum + (doc.data()['commissionPaise'] as int));
+                    final net = accounted.fold<int>(0,
+                        (sum, doc) => sum + (doc.data()['partnerNetPaise'] as int));
+                    final gross = accounted.fold<int>(0, (sum, doc) {
+                      final data = doc.data();
+                      return sum + (data['grossPaise'] is int
+                          ? data['grossPaise'] as int
+                          : (data['commissionPaise'] as int) +
+                              (data['partnerNetPaise'] as int));
+                    });
+                    return section('Partner earnings summary', Icons.account_balance_wallet_outlined, [
+                      detail('Current month trips', '${monthTrips.length}'),
+                      detail('Current month cash fare', '₹${(gross / 100).toStringAsFixed(2)}'),
+                      detail('RideGo commission', '₹${(commission / 100).toStringAsFixed(2)}'),
+                      detail('Net earning', '₹${(net / 100).toStringAsFixed(2)}'),
+                      const SizedBox(height: 8),
+                      const Text('Cash fare and earnings include only verified backend-accounted cash rides this month. Older receipts without commission records are excluded.'),
+                    ]);
+                  },
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DriverHistoryScreen()),
                   ),
-                  const SizedBox(height: 8),
-                  const Text('Cash settlement and payouts are not yet available.'),
-                    ]),
-                  ]);
-                },
-              ),
-              tabPage([
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('VIEW TRIP HISTORY'),
+                ),
+                const Text('Cash settlement and payouts are not yet available.'),
+              ], expanded: true),
+              group('Documents', Icons.description_outlined, [
                 section('Documents', Icons.description_outlined, [
-                  const Text('Driving licence, registration certificate (RC), insurance and applicable permits.'),
-                  const SizedBox(height: 6),
+                  const Text('Driving licence, RC, insurance and applicable permits.'),
                   const Text('Secure document upload: Coming soon'),
                 ]),
                 section('Bank and UPI', Icons.account_balance_outlined, [
@@ -220,13 +207,12 @@ class PartnerProfileOverview extends StatelessWidget {
                 ]),
                 section('Verification', Icons.verified_user_outlined, [
                   const Text('Partner document review and approval: Not yet configured'),
-                  const Text('Online availability is not an approval status.'),
                 ]),
               ]),
             ],
           );
         },
       ),
-    ));
+    );
   }
 }
