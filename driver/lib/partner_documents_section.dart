@@ -145,6 +145,37 @@ class _PartnerDocumentsSectionState extends State<PartnerDocumentsSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Government document verification',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                const Text('RideGo is preparing a secure DigiLocker connection for RC and driving licence verification.'),
+                const SizedBox(height: 8),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.verified_user_outlined),
+                  title: Text('Verify RC with DigiLocker'),
+                  subtitle: Text('Coming soon • Official connection not enabled'),
+                ),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.badge_outlined),
+                  title: Text('Verify driving licence with DigiLocker'),
+                  subtitle: Text('Coming soon • Official connection not enabled'),
+                ),
+                const Text('No DigiLocker login or consent is requested in this app yet. Existing uploads remain unverified until authorized review.'),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text('Temporary document submission (not government verification)'),
+        const SizedBox(height: 12),
         const Text('Driving licence number'),
         const SizedBox(height: 8),
         TextField(
