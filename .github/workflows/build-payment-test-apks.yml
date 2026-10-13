@@ -5,6 +5,14 @@ on:
   push:
     branches:
       - feature/payments-from-tested-build
+    paths:
+      - 'rider/**'
+      - 'driver/**'
+      - 'functions/**'
+      - 'firestore.rules'
+      - 'firebase.json'
+      - '.github/workflows/build-payment-test-apks.yml'
+      - '.github/workflows/validate-payments.yml'
 
 permissions:
   contents: read
