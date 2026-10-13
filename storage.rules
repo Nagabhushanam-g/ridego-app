@@ -1,28 +1,23 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
-    // Documents are private to their authenticated owner.
-    // Never expose these documents publicly or allow arbitrary paths.
-    match /partnerDocuments/{uid}/{documentType} {
+    // Only the owner's registration certificate image may be uploaded.
+    match /partnerDocuments/{uid}/registrationCertificate {
       function owner() {
         return request.auth != null && request.auth.uid == uid;
       }
-      function allowedDocument() {
-        return documentType in [
-          'drivingLicence', 'registrationCertificate', 'insurance', 'permit'
-        ];
-      }
-      function validUpload() {
+      function validRcImage() {
         return request.resource.size > 0
           && request.resource.size <= 5 * 1024 * 1024
-          && request.resource.contentType in [
-            'application/pdf', 'image/jpeg', 'image/png'
-          ];
+          && request.resource.contentType in ['image/jpeg', 'image/png'];
       }
-      allow get: if owner() && allowedDocument();
-      allow create, update: if owner() && allowedDocument() && validUpload();
-      allow delete: if false;
-      allow list: if false;
+      allow get: if owner();
+      allow create, update: if owner() && validRcImage();
+      allow delete, list: if false;
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
