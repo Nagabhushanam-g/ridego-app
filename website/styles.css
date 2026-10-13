@@ -5,3 +5,6 @@
 
 /* Desktop hero refinement after visual review */
 @media(min-width:801px){.hero{padding:68px 0}.hero-grid{gap:48px}.hero h1{font-size:clamp(2.8rem,4.45vw,4rem);line-height:1.14;max-width:680px}.hero-art{min-height:330px}}@media(max-width:800px){.hero h1{font-size:clamp(2.4rem,7.5vw,3.4rem)}}
+
+/* Shared RideGo vector illustration sizing */
+.hero-art{background:transparent;min-height:0;overflow:hidden;display:flex;align-items:center}.hero-art img{display:block;width:100%;height:auto;border-radius:30px}.feature-icon-img{display:block;width:54px;height:54px;margin-bottom:15px}.app-icon-img{display:block;width:64px;height:64px;margin-bottom:14px;border-radius:15px}
