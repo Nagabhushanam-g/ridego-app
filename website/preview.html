@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RideGo Website Design Preview</title><link rel="stylesheet" href="styles.css">
+<style>
+.preview-toolbar{position:sticky;top:0;z-index:10;background:#122d4e;color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.preview-toolbar button{background:white;color:#143b67;border:0;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer}.preview-frame{display:block;width:100%;height:calc(100vh - 72px);border:0;background:white;transition:width .2s ease}.preview-area{display:flex;justify-content:center;background:#dce7f2;min-height:calc(100vh - 72px)}.preview-frame.mobile{width:390px;max-width:100%;min-height:750px;box-shadow:0 0 24px #163a5c55}
+</style></head><body>
+<div class="preview-toolbar"><strong>RideGo Website • Design Review</strong><div><button id="desktop" aria-pressed="true">Desktop view</button> <button id="mobile" aria-pressed="false">Mobile view</button> <a class="button" href="index.html" target="_blank" rel="noopener">Open full page ↗</a></div></div>
+<div class="preview-area"><iframe id="site" class="preview-frame" src="index.html" title="RideGo homepage preview"></iframe></div>
+<script>
+const frame=document.getElementById('site');
+for(const mode of ['desktop','mobile']) document.getElementById(mode).addEventListener('click',()=>{
+ frame.classList.toggle('mobile',mode==='mobile');
+ for(const other of ['desktop','mobile']) document.getElementById(other).setAttribute('aria-pressed',String(other===mode));
+});
+</script></body></html>
