@@ -34,3 +34,11 @@ The website deliberately has no Firebase keys, sign-in, payment form, or sensiti
 3. Supply official support contacts and legal entity information.
 4. Approve reviewed legal/safety policies before replacing placeholders.
 5. Publish only after explicit launch approval.
+
+## Safety and support content review
+
+- [x] Add general Rider and Partner safety guidance without promising unavailable features.
+- [x] Add prelaunch support FAQ and clarify that the website has no monitored support channel.
+- [ ] Confirm local emergency guidance and the official incident-response process.
+- [ ] Add verified support email/phone and response expectations after staffing is ready.
+- [ ] Obtain review and approval of all safety, privacy and terms text before publication.
