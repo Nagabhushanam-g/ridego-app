@@ -8,19 +8,19 @@ function fakeDb(role) {
   let saved;
   let counter = null;
   const counterRef = {};
+  const sessionRef = {};
   const db = { collection(name) {
     if (name === 'profiles') return { doc() { return { async get() {
       return { exists: role !== null, get: (field) => field === 'role' ? role : undefined };
     } }; } };
     if (name === 'digilockerPartnerRateLimits') return { doc() { return counterRef; } };
-    if (name === 'digilockerAuthorizationSessions') return { doc() { return {
-      async create(record) { writes++; saved = record; },
-    }; } };
+    if (name === 'digilockerAuthorizationSessions') return { doc() { return sessionRef; } };
     throw new Error('Unexpected collection');
   }, async runTransaction(fn) {
     return fn({
       async get(ref) { assert.equal(ref, counterRef); return { exists: counter !== null, data: () => ({ ...counter }) }; },
       set(ref, patch) { assert.equal(ref, counterRef); counter = { ...patch }; },
+      create(ref, record) { assert.equal(ref, sessionRef); writes++; saved = record; },
     });
   } };
   return { db, get writes() { return writes; }, get saved() { return saved; } };
