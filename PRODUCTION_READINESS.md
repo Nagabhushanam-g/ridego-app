@@ -4,12 +4,18 @@ Branch: `feature/payments-from-tested-build`. This is a test plan, not evidence 
 
 ## Partner profile (latest APK, commit 4e108a0)
 - [ ] Open Personal tab; confirm correct name, phone and email.
-- [ ] Edit Vehicle make/model; save; close and reopen the app; confirm value persists.
+- [x] Edit Vehicle make/model; save; close and reopen the app; confirm value persists (user confirmed October 13, 2026).
 - [ ] Verify existing vehicle type and registration remain unchanged after editing.
-- [ ] Open Earnings; compare accounted cash fares, commission and net to Trip History for the same accounting records. Earnings tab is all-time; Trip History has a date filter.
+- [x] Open Earnings and verify displayed cash fares, commission and Partner net (user confirmed October 13, 2026). Earnings tab is all-time; Trip History has a date filter. Detailed cross-check against backend ledger remains pending.
 - [ ] Verify old confirmed rides without backend accounting are excluded from commission/net.
 - [ ] Verify Documents and Bank/UPI clearly show unavailable placeholders and cannot accept sensitive details.
 - [ ] Verify Sign Out and subsequent Sign In.
+
+## Next device test: new cash ride and idempotency
+- [ ] Complete a fresh cash ride and record the exact fare, receipt ID and Partner commission/net from Trip History.
+- [ ] Compare commission with 10% of fare and Partner net with fare minus commission (allow paise rounding).
+- [ ] Confirm the Rider sees payment received and the Partner's accounted ride count increases exactly once.
+- [ ] Reopen the ride history; verify no duplicate receipt or commission is shown. Backend duplicate-write prevention needs separate automated/integration verification.
 
 ## Rider and Partner end-to-end
 - [x] Fresh cash ride: completed, Partner confirmed cash, Rider saw paid, rated trip; screenshots reviewed October 12, 2026.
