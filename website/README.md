@@ -23,9 +23,17 @@ The website deliberately has no Firebase keys, sign-in, payment form, or sensiti
 
 - Responsive homepage and mobile navigation implemented.
 - Separate Rider and Partner app sections with SVG icons.
-- Partner description reflects RC image submission and driving licence number/expiry entry.
+- Partner description includes planned consent-based DigiLocker RC and Driving Licence verification; clearly states that it is not yet available.
 - Mobile tap targets, readable text contrast, and reduced-motion preferences improved.
 - Privacy, terms, safety and support pages remain prelaunch placeholders.
+
+## DigiLocker website claims
+
+- [x] Describe government-document verification as a planned feature, not a live service.
+- [ ] Obtain authorized DigiLocker Requester access and complete backend integration.
+- [ ] Confirm official branding, trademark and integration-description requirements before publication.
+- [ ] Confirm consent, privacy, document-retention and review procedures.
+- [ ] Replace coming-soon text only after a real end-to-end government-document verification test.
 
 ## Next review before publication
 
