@@ -22,6 +22,7 @@
     <h1>Preview the RideGo website</h1>
     <p>Open the actual homepage directly. This works from an extracted ZIP folder in Chrome without an embedded frame.</p>
     <div class="actions"><a class="button" href="index.html">Open RideGo homepage ↗</a><a class="button outline" href="support.html">View support page</a></div>
+    <div id="asset-check" role="status" class="preview-tip"><strong>Checking website styles…</strong></div>
     <div class="preview-tip">
       <h3>Check desktop and mobile layouts</h3>
       <p><strong>Desktop:</strong> Open the homepage normally in Chrome.</p>
@@ -29,6 +30,22 @@
       <p class="notice">Extract the entire website ZIP before opening these files. Keep index.html and styles.css in the same website folder.</p>
     </div>
   </div></div></main>
+  <script>
+  (function () {
+    const status = document.getElementById('asset-check');
+    const probe = document.createElement('span');
+    probe.className = 'brand-mark';
+    probe.textContent = 'R';
+    probe.style.position = 'absolute';
+    probe.style.left = '-9999px';
+    document.body.appendChild(probe);
+    const loaded = getComputedStyle(probe).display === 'grid';
+    probe.remove();
+    status.innerHTML = loaded
+      ? '<strong>Styles loaded correctly.</strong> Open the homepage to review the design.'
+      : '<strong>Styles are missing.</strong> Extract the complete ZIP first. Open the website folder and confirm that <code>index.html</code>, <code>preview.html</code>, and <code>styles.css</code> are together. Do not open files inside the ZIP viewer.';
+  })();
+  </script>
   <footer><div class="wrap footer-row"><strong>RideGo</strong><span>Development preview — not publicly hosted</span><a href="index.html">Homepage</a></div></footer>
 </body>
 </html>
