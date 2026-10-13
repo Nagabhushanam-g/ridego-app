@@ -97,198 +97,75 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
           final trips = completed.where((doc) => _inRange(doc.data())).toList();
           trips.sort((a, b) => _tripDate(b.data())!.compareTo(_tripDate(a.data())!));
 
-          final totalFares = trips.fold<int>(
-            0, (sum, doc) => sum + ((doc.data()['fare'] as num?)?.round() ?? 0),
-          );
-
-          final cashCollected = trips
-              .where((doc) => doc.data()['paymentMethod'] == 'cash'
-                  && doc.data()['paymentStatus'] == 'paid')
-              .fold<int>(0, (sum, doc) =>
-                  sum + ((doc.data()['fare'] as num?)?.round() ?? 0));
-          final cashConfirmedTrips = trips.where((doc) =>
-              doc.data()['paymentMethod'] == 'cash' &&
-              doc.data()['paymentStatus'] == 'paid').length;
-          final awaitingPaymentTrips = trips.length - cashConfirmedTrips;
-          final unverifiedFares = totalFares - cashCollected;
-          final accountedCashTrips = trips.where((doc) =>
-              doc.data()['paymentMethod'] == 'cash' &&
-              doc.data()['paymentStatus'] == 'paid' &&
-              doc.data()['commissionPaise'] is int &&
-              doc.data()['partnerNetPaise'] is int).toList();
-          final accountedGrossPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
-              sum + ((doc.data()['grossPaise'] as int?) ??
-                  (((doc.data()['fare'] as num?)?.round() ?? 0) * 100)));
-          final accountedCommissionPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
-              sum + (doc.data()['commissionPaise'] as int));
-          final accountedNetPaise = accountedCashTrips.fold<int>(0, (sum, doc) =>
-              sum + (doc.data()['partnerNetPaise'] as int));
-
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Selected period', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      Text('${_date(_from)} – ${_date(_to)}'),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: _chooseRange,
-                            icon: const Icon(Icons.date_range),
-                            label: const Text('FROM / TO DATES'),
-                          ),
-                          TextButton(
-                            onPressed: _currentMonth,
-                            child: const Text('CURRENT MONTH'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              Text('Completed trips', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      const CircleAvatar(child: Icon(Icons.account_balance_wallet)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Completed trips'),
-                            Text('${trips.length}', style: Theme.of(context).textTheme.headlineSmall),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text('Total fares'),
-                          Text('₹$totalFares', style: Theme.of(context).textTheme.headlineSmall),
-                        ],
-                      ),
-                    ],
-                  ),
+              Text('Period: ${_date(_from)} – ${_date(_to)}'),
+              Wrap(spacing: 8, children: [
+                OutlinedButton.icon(
+                  onPressed: _chooseRange,
+                  icon: const Icon(Icons.date_range),
+                  label: const Text('SELECT DATES'),
                 ),
-              ),
+                TextButton(onPressed: _currentMonth, child: const Text('CURRENT MONTH')),
+              ]),
               const SizedBox(height: 8),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Payment summary',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      Text('Confirmed cash collections: $cashConfirmedTrips trip(s) • ₹$cashCollected'),
-                      const SizedBox(height: 4),
-                      Text('Not confirmed as cash: $awaitingPaymentTrips trip(s) • ₹$unverifiedFares'),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Unconfirmed amounts may include unpaid, historical, or non-cash rides. '
-                        'They are not counted as cash collected. '
-                        'Verified commission and Partner earnings appear separately below.',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Partner earnings overview',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      Text('Cash collected (gross): ₹$cashCollected'),
-                      const SizedBox(height: 4),
-                      const Text('RideGo commission policy: 10%'),
-                      const SizedBox(height: 4),
-                      Text('Accounted cash fares: ₹${(accountedGrossPaise / 100).toStringAsFixed(2)} (${accountedCashTrips.length} trips)'),
-                      const SizedBox(height: 4),
-                      Text('Recorded commission: ₹${(accountedCommissionPaise / 100).toStringAsFixed(2)}'),
-                      const SizedBox(height: 4),
-                      Text('Recorded Partner net: ₹${(accountedNetPaise / 100).toStringAsFixed(2)}'),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Earnings and commission totals include only trips with backend accounting records. '
-                        'Older confirmed trips are excluded until reviewed. '
-                        'Cash settlement with RideGo is not yet implemented.',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              Text('${trips.length} completed trip(s) • Tap a trip for its transaction details.'),
               if (missingDate > 0)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text('$missingDate older completed trip(s) have no recorded date and cannot be filtered.'),
-                ),
+                Text('$' + '{missingDate} older trip(s) have no recorded date and are excluded.'),
               if (trips.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(24),
                   child: Center(child: Text('No completed trips in the selected period.')),
                 ),
-              for (final doc in trips) ...[
-                const SizedBox(height: 10),
+              for (final doc in trips)
                 Builder(builder: (context) {
                   final data = doc.data();
+                  final fare = (data['fare'] as num?)?.round() ?? 0;
                   final vehicle = (data['vehicle'] ?? 'Ride').toString();
-                  final fare = data['fare'] ?? 0;
-                  final distance = data['distanceKm'] ?? 0;
-                  final destination = (data['destinationAddress'] ?? 'Destination not recorded').toString();
-                  final rating = (data['riderRating'] as num?)?.toInt();
                   final date = _tripDate(data)!.toLocal();
-                  final isCashPaid = data['paymentStatus'] == 'paid' &&
-                      data['paymentMethod'] == 'cash';
-                  final commissionPaise = data['commissionPaise'];
-                  final partnerNetPaise = data['partnerNetPaise'];
-                  final grossPaise = data['grossPaise'];
-                  final hasAccounting = isCashPaid &&
-                      commissionPaise is int && partnerNetPaise is int;
+                  final isCashPaid = data['paymentMethod'] == 'cash' &&
+                      data['paymentStatus'] == 'paid';
+                  final commission = data['commissionPaise'];
+                  final net = data['partnerNetPaise'];
+                  final hasAccounting = isCashPaid && commission is int && net is int;
+                  final gross = data['grossPaise'] is int
+                      ? data['grossPaise'] as int
+                      : (hasAccounting ? (commission as int) + (net as int) : 0);
+                  final destination = (data['destinationAddress'] ?? 'Not recorded').toString();
+                  final rating = (data['riderRating'] as num?)?.toInt();
+                  final receipt = data['paymentReceiptId'];
                   return Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Icon(vehicle == 'Bike'
-                            ? Icons.two_wheeler
-                            : vehicle == 'Auto'
-                                ? Icons.electric_rickshaw
-                                : Icons.local_taxi),
-                      ),
-                      title: Text('$vehicle • ₹$fare'),
-                      subtitle: Text(
-                        '${_date(date)}\n$destination\n$distance km'
-                        '${rating == null ? '' : '\nRider rating: $rating/5'}'
-                        '\nPayment: ${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' ? 'Cash received' : 'Not verified'}'
-                        '${data['paymentStatus'] == 'paid' && data['paymentMethod'] == 'cash' && data['paymentReceiptId'] is String ? '\nReceipt: ${data['paymentReceiptId']}' : ''}'
-                        '${hasAccounting ? '\nAccounted cash fare: ₹${((grossPaise is int ? grossPaise : ((data['fare'] as num?)?.round() ?? 0) * 100) / 100).toStringAsFixed(2)}' : ''}'
-                        '${hasAccounting ? '\nRideGo commission (10%): ₹${(commissionPaise / 100).toStringAsFixed(2)}' : ''}'
-                        '${hasAccounting ? '\nPartner net earnings: ₹${(partnerNetPaise / 100).toStringAsFixed(2)}' : ''}'
-                        '${isCashPaid && !hasAccounting ? '\nHistorical payment — commission not recorded' : ''}',
-                      ),
-                      isThreeLine: true,
-                      trailing: const Icon(Icons.check_circle_outline),
+                    margin: const EdgeInsets.only(top: 10),
+                    child: ExpansionTile(
+                      leading: const Icon(Icons.receipt_long_outlined),
+                      title: Text('₹$' + '{fare} • $' + '{vehicle}'),
+                      subtitle: Text('${_date(date)} • ${isCashPaid ? 'Cash received' : 'Payment not verified'}'),
+                      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Divider(),
+                        Text('Trip ID: ${doc.id}'),
+                        Text('Date: ${_date(date)}'),
+                        Text('Destination: $' + '{destination}'),
+                        Text('Distance: ${data['distanceKm'] ?? 'Not recorded'} km'),
+                        Text('Trip fare: ₹$' + '{fare}'),
+                        Text('Payment: ${isCashPaid ? 'Cash received' : 'Not verified as cash'}'),
+                        if (receipt is String && receipt.isNotEmpty)
+                          Text('Receipt ID: $' + '{receipt}'),
+                        if (hasAccounting) ...[
+                          Text('Accounted cash fare: ₹${(gross / 100).toStringAsFixed(2)}'),
+                          Text('RideGo commission (10%): ₹${(commission / 100).toStringAsFixed(2)}'),
+                          Text('Partner net earning: ₹${(net / 100).toStringAsFixed(2)}'),
+                        ] else if (isCashPaid)
+                          const Text('Historical cash receipt: commission and net not recorded.'),
+                        if (rating != null) Text('Rider rating: $' + '{rating}/5'),
+                      ],
                     ),
                   );
                 }),
-              ],
             ],
           );
         },
