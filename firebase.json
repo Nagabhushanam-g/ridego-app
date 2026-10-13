@@ -8,5 +8,8 @@
       "database": "firestore-db-2",
       "rules": "firestore.rules"
     }
-  ]
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  }
 }
