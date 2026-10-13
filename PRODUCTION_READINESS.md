@@ -2,12 +2,16 @@
 
 Branch: `feature/payments-from-tested-build`. This is a test plan, not evidence of completed testing.
 
-## Partner profile (latest APK, commit 4e108a0)
+## Partner profile and transaction history (device-tested October 13, 2026)
 - [ ] Open Personal tab; confirm correct name, phone and email.
 - [x] Edit Vehicle make/model; save; close and reopen the app; confirm value persists (user confirmed October 13, 2026).
 - [ ] Verify existing vehicle type and registration remain unchanged after editing.
-- [x] Open Earnings and verify displayed cash fares, commission and Partner net (user confirmed October 13, 2026). Earnings tab is all-time; Trip History has a date filter. Detailed cross-check against backend ledger remains pending.
-- [ ] Verify old confirmed rides without backend accounting are excluded from commission/net.
+- [x] Open vertical Personal / Vehicle / Earnings / Documents sections and verify Earnings expands (screenshots October 13, 2026).
+- [x] Verify current-month summary displays 55 completed trips, ₹175.00 backend-accounted cash fare, ₹17.50 commission, ₹157.50 net (screenshots October 13, 2026). Cross-check against backend ledger remains pending.
+- [x] Verify custom Trip History date range October 6–9 filters to 15 completed trips, and Current Month restores 55 trips (screenshots October 13, 2026).
+- [x] Expand an unverified ₹419 trip and confirm no commission/net is presented as accounted (screenshots October 13, 2026).
+- [x] Expand verified ₹50 cash trip and confirm ₹5.00 commission and ₹45.00 net plus receipt ID (screenshots October 13, 2026).
+- [x] Verify the earnings summary excludes older cash rides without backend commission records (summary disclaimer and verified-only cash total visually confirmed October 13, 2026; backend ledger reconciliation pending).
 - [ ] Verify Documents and Bank/UPI clearly show unavailable placeholders and cannot accept sensitive details.
 - [ ] Verify Sign Out and subsequent Sign In.
 
@@ -35,4 +39,4 @@ Branch: `feature/payments-from-tested-build`. This is a test plan, not evidence 
 - [ ] Test clean install and upgrade, release signing, Play Store compliance, crash monitoring and rollback plan.
 - [ ] Confirm both apps' production release candidates are approved.
 
-Only after the production gates are satisfied should the official RideGo website project begin.
+The RideGo website is being developed in parallel as an **unpublished prelaunch preview**. Desktop and 400px mobile homepage, mobile navigation and stacked Rider/Partner app cards were visually reviewed October 13, 2026. Publishing the official site and enabling bookings, downloads or payments remain gated by production readiness.
