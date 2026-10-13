@@ -141,7 +141,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                     margin: const EdgeInsets.only(top: 10),
                     child: ExpansionTile(
                       leading: const Icon(Icons.receipt_long_outlined),
-                      title: Text('₹$' + '{fare} • $' + '{vehicle}'),
+                      title: Text('₹$fare • $vehicle'),
                       subtitle: Text('${_date(date)} • ${isCashPaid ? 'Cash received' : 'Payment not verified'}'),
                       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       expandedCrossAxisAlignment: CrossAxisAlignment.start,
@@ -149,19 +149,19 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                         const Divider(),
                         Text('Trip ID: ${doc.id}'),
                         Text('Date: ${_date(date)}'),
-                        Text('Destination: $' + '{destination}'),
+                        Text('Destination: $destination'),
                         Text('Distance: ${data['distanceKm'] ?? 'Not recorded'} km'),
-                        Text('Trip fare: ₹$' + '{fare}'),
+                        Text('Trip fare: ₹$fare'),
                         Text('Payment: ${isCashPaid ? 'Cash received' : 'Not verified as cash'}'),
                         if (receipt is String && receipt.isNotEmpty)
-                          Text('Receipt ID: $' + '{receipt}'),
+                          Text('Receipt ID: $receipt'),
                         if (hasAccounting) ...[
                           Text('Accounted cash fare: ₹${(gross / 100).toStringAsFixed(2)}'),
                           Text('RideGo commission (10%): ₹${(commission / 100).toStringAsFixed(2)}'),
                           Text('Partner net earning: ₹${(net / 100).toStringAsFixed(2)}'),
                         ] else if (isCashPaid)
                           const Text('Historical cash receipt: commission and net not recorded.'),
-                        if (rating != null) Text('Rider rating: $' + '{rating}/5'),
+                        if (rating != null) Text('Rider rating: $rating/5'),
                       ],
                     ),
                   );
