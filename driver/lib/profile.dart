@@ -82,6 +82,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   final name = TextEditingController();
   final phone = TextEditingController();
   final vehicleNumber = TextEditingController();
+  final vehicleModel = TextEditingController();
   String vehicleType = 'Bike';
   bool saving = false;
   String? error;
@@ -105,6 +106,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         name.text = (data['fullName'] ?? '').toString();
         phone.text = (data['phone'] ?? '').toString();
         vehicleNumber.text = (data['vehicleNumber'] ?? '').toString();
+        vehicleModel.text = (data['vehicleModel'] ?? '').toString();
         final type = (data['vehicleType'] ?? '').toString();
         if (['Bike', 'Auto', 'Cab'].contains(type)) vehicleType = type;
       }
@@ -120,6 +122,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     name.dispose();
     phone.dispose();
     vehicleNumber.dispose();
+    vehicleModel.dispose();
     super.dispose();
   }
 
@@ -148,6 +151,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         'email': user.email,
         'vehicleType': vehicleType,
         'vehicleNumber': number,
+        'vehicleModel': vehicleModel.text.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       if (mounted) widget.onSaved();
@@ -189,6 +193,9 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             const SizedBox(height: 14),
             TextField(controller: vehicleNumber, textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(labelText: 'Vehicle number', prefixIcon: Icon(Icons.confirmation_number_outlined), border: OutlineInputBorder())),
+            const SizedBox(height: 14),
+            TextField(controller: vehicleModel, textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(labelText: 'Vehicle make and model (optional)', hintText: 'e.g. Honda Activa', prefixIcon: Icon(Icons.directions_car_outlined), border: OutlineInputBorder())),
             const SizedBox(height: 14),
             Text('Email: $email'),
             if (error != null) ...[
