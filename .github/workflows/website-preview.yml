@@ -6,6 +6,7 @@ on:
       - feature/payments-from-tested-build
     paths:
       - 'website/**'
+      - 'rider/assets/images/ridego_promo.jpg'
       - '.github/workflows/website-preview.yml'
   workflow_dispatch:
 
@@ -18,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Reuse the original RideGo APK promotional image
+        run: cp rider/assets/images/ridego_promo.jpg website/assets/ridego_promo.jpg
       - name: Check website pages, anchors and accessibility
         run: python3 website/check_site.py
       - name: Package local browser preview
