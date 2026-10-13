@@ -6,14 +6,22 @@ const { preparePartnerDigiLockerSession } = require('./digilocker_partner_sessio
 function fakeDb(role) {
   let writes = 0;
   let saved;
+  let counter = null;
+  const counterRef = {};
   const db = { collection(name) {
     if (name === 'profiles') return { doc() { return { async get() {
       return { exists: role !== null, get: (field) => field === 'role' ? role : undefined };
     } }; } };
+    if (name === 'digilockerPartnerRateLimits') return { doc() { return counterRef; } };
     if (name === 'digilockerAuthorizationSessions') return { doc() { return {
       async create(record) { writes++; saved = record; },
     }; } };
     throw new Error('Unexpected collection');
+  }, async runTransaction(fn) {
+    return fn({
+      async get(ref) { assert.equal(ref, counterRef); return { exists: counter !== null, data: () => ({ ...counter }) }; },
+      set(ref, patch) { assert.equal(ref, counterRef); counter = { ...patch }; },
+    });
   } };
   return { db, get writes() { return writes; }, get saved() { return saved; } };
 }
@@ -41,4 +49,14 @@ test('rejects unauthenticated, rider, missing profile and unsupported types', as
     assert.deepEqual(await preparePartnerDigiLockerSession({ db: s.db, request }), { ok: false, reason });
     assert.equal(s.writes, 0);
   }
+});
+
+
+test('cooldown prevents duplicate authorization sessions', async () => {
+  const s = fakeDb('driver');
+  const request = { auth: { uid: 'partner-1' }, data: { documentType: 'dl' } };
+  assert.equal((await preparePartnerDigiLockerSession({ db: s.db, request, now: 1000000 })).ok, true);
+  assert.deepEqual(await preparePartnerDigiLockerSession({ db: s.db, request, now: 1000001 }),
+    { ok: false, reason: 'cooldown' });
+  assert.equal(s.writes, 1);
 });
