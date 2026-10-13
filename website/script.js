@@ -5,12 +5,14 @@ if (toggle && links) {
   function closeMenu() {
     links.classList.remove('open');
     toggle.setAttribute('aria-expanded', 'false');
+    toggle.textContent = 'Menu ☰';
   }
 
   toggle.addEventListener('click', () => {
     const expanded = toggle.getAttribute('aria-expanded') === 'true';
     links.classList.toggle('open', !expanded);
     toggle.setAttribute('aria-expanded', String(!expanded));
+    toggle.textContent = expanded ? 'Menu ☰' : 'Close ×';
   });
 
   links.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMenu));
