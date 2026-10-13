@@ -114,7 +114,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
               const SizedBox(height: 8),
               Text('${trips.length} completed trip(s) • Tap a trip for its transaction details.'),
               if (missingDate > 0)
-                Text('${missingDate} older trip(s) have no recorded date and are excluded.'),
+                Text('$missingDate older trip(s) have no recorded date and are excluded.'),
               if (trips.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(24),
