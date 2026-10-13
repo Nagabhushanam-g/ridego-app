@@ -18,3 +18,19 @@ To serve locally instead, run `python3 -m http.server 8080` from the website dir
 - [ ] Approve public publication; this commit does **not** deploy the website.
 
 The website deliberately has no Firebase keys, sign-in, payment form, or sensitive data collection.
+
+## Current development status
+
+- Responsive homepage and mobile navigation implemented.
+- Separate Rider and Partner app sections with SVG icons.
+- Partner description reflects RC image submission and driving licence number/expiry entry.
+- Mobile tap targets, readable text contrast, and reduced-motion preferences improved.
+- Privacy, terms, safety and support pages remain prelaunch placeholders.
+
+## Next review before publication
+
+1. Visually test at 360px, 390px, 768px and desktop widths.
+2. Confirm actual supported service areas and product claims.
+3. Supply official support contacts and legal entity information.
+4. Approve reviewed legal/safety policies before replacing placeholders.
+5. Publish only after explicit launch approval.
