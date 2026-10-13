@@ -58,3 +58,13 @@ html{scroll-padding-top:90px}
 .app-showcase-content .status{margin-top:12px;line-height:1.5}
 .partner-showcase .status{background:#e5f5eb;color:#11633b}
 @media(max-width:520px){.app-art{min-height:180px}.app-showcase-content{padding:22px}}
+
+/* RideGo shared wordmark and visual separation of the app showcase */
+.brand-word{letter-spacing:-.04em;color:#102f59}
+.brand-word span{color:#079b65}
+.apps-section{background:linear-gradient(145deg,#f7fbff 0%,#eef6ff 47%,#f0faf5 100%)}
+.apps-section .section-lead{margin-bottom:12px}
+.app-showcase{box-shadow:0 16px 38px #143b6712;transition:transform .18s ease,box-shadow .18s ease}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){
+  .app-showcase:hover{transform:translateY(-3px);box-shadow:0 20px 42px #143b6720}
+}
