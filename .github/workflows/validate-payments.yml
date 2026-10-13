@@ -51,6 +51,8 @@ jobs:
         run: node --check functions/index.js && node --check functions/cash_confirmation_policy.js && node --check functions/cash_confirmation_transaction.js
       - name: Test cash commission accounting
         run: npm --prefix functions install --no-audit --no-fund && node --test functions/commission.test.js functions/cash_confirmation_policy.test.js
+      - name: Test DigiLocker preparation safeguards
+        run: node --test functions/digilocker*.test.js
       - name: Check package metadata
         run: node -e "const p=require('./functions/package.json');if(!p.dependencies['firebase-functions'] || !p.dependencies['firebase-admin'])process.exit(1)"
 
