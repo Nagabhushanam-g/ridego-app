@@ -52,7 +52,7 @@ jobs:
       - name: Test cash commission accounting
         run: npm --prefix functions install --no-audit --no-fund && node --test functions/commission.test.js functions/cash_confirmation_policy.test.js
       - name: Test DigiLocker preparation safeguards
-        run: node --test functions/digilocker*.test.js
+        run: node --test functions/digilocker_state.test.js functions/digilocker_session.test.js functions/digilocker_callback.test.js functions/digilocker_callback_flow.test.js functions/digilocker_session_create.test.js functions/digilocker_session_store.test.js functions/digilocker_partner_session.test.js
       - name: Check package metadata
         run: node -e "const p=require('./functions/package.json');if(!p.dependencies['firebase-functions'] || !p.dependencies['firebase-admin'])process.exit(1)"
 
@@ -72,6 +72,23 @@ jobs:
         run: npm --prefix functions install --no-audit --no-fund && npm install --no-save firebase-tools
       - name: Run simultaneous cash confirmations against emulator
         run: npx firebase emulators:exec --only firestore --project ridego-cash-integrity-test "node --test functions/cash_confirmation_emulator.test.js"
+
+  digilocker-emulator:
+    name: Test DigiLocker replay prevention in Firestore Emulator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Firebase dependencies and CLI
+        run: npm --prefix functions install --no-audit --no-fund && npm install --no-save firebase-tools
+      - name: Run DigiLocker transaction tests against emulator
+        run: npx firebase emulators:exec --only firestore --project ridego-digilocker-security-test "node --test functions/digilocker_emulator.test.js"
 
   profile-rules-emulator:
     name: Test Partner profile security rules
