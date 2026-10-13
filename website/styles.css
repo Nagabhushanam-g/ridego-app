@@ -68,3 +68,19 @@ html{scroll-padding-top:90px}
 @media(hover:hover) and (prefers-reduced-motion:no-preference){
   .app-showcase:hover{transform:translateY(-3px);box-shadow:0 20px 42px #143b6720}
 }
+
+/* Responsive illustrative phone previews for the two RideGo apps */
+.app-art{min-height:315px;padding:22px 16px 0}
+.phone-mockup{width:174px;height:285px;border:7px solid #172b42;border-bottom-width:10px;border-radius:30px 30px 0 0;background:#fff;box-shadow:10px 15px 24px #163b5b30;position:relative;z-index:1;overflow:hidden}
+.phone-camera{position:absolute;z-index:3;top:6px;left:50%;transform:translateX(-50%);width:55px;height:12px;background:#172b42;border-radius:0 0 10px 10px}
+.phone-screen{height:100%;padding:33px 12px 12px;display:flex;align-items:center;flex-direction:column;text-align:center;gap:6px;background:linear-gradient(165deg,#b6dcff 0%,#f8fcff 72%)}
+.partner-phone .phone-screen{background:linear-gradient(165deg,#b5ebd0 0%,#f7fff9 72%)}
+.phone-screen img{width:65px;height:65px;filter:drop-shadow(0 5px 7px #17365c20)}
+.phone-screen strong{font-size:1.05rem;line-height:1.2;color:#103c72}
+.partner-phone .phone-screen strong{color:#076b41}
+.phone-screen small{font-size:.68rem;color:#40566c}
+.mock-route{display:flex;align-items:center;gap:5px;margin-top:16px;font-size:1.2rem;color:#1469b7}
+.partner-phone .mock-route{color:#078554}
+.route-dash{width:66px;border-top:3px dashed currentColor;transform:rotate(-12deg)}
+.mock-caption{font-size:.64rem;color:#52677e;margin-top:6px}
+@media(max-width:520px){.app-art{min-height:290px}.phone-mockup{height:263px;width:165px}}
