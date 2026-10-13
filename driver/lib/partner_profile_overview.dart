@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'profile.dart';
 import 'history.dart';
+import 'partner_documents_section.dart';
 
 /// Profile overview. Verification and payout are intentionally read-only
 /// until their protected backend workflows are implemented.
@@ -198,8 +199,7 @@ class PartnerProfileOverview extends StatelessWidget {
               ], expanded: true),
               group('Documents', Icons.description_outlined, [
                 section('Documents', Icons.description_outlined, [
-                  const Text('Driving licence, RC, insurance and applicable permits.'),
-                  const Text('Secure document upload: Coming soon'),
+                  const PartnerDocumentsSection(),
                 ]),
                 section('Bank and UPI', Icons.account_balance_outlined, [
                   const Text('Payout account configuration: Coming soon'),
