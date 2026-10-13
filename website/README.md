@@ -24,7 +24,7 @@ The website deliberately has no Firebase keys, sign-in, payment form, or sensiti
 - Responsive homepage and mobile navigation implemented.
 - Separate Rider and Partner app sections with SVG icons.
 - Partner description includes planned consent-based DigiLocker RC and Driving Licence verification; clearly states that it is not yet available.
-- Verification navigation anchor added; draft Privacy and Safety pages describe proposed checks without claiming live verification.
+- Verification navigation anchor added; draft Privacy, Safety, Terms and Support pages describe proposed checks without claiming live verification.
 - Mobile tap targets, readable text contrast, and reduced-motion preferences improved.
 - Privacy, terms, safety and support pages remain prelaunch placeholders.
 
