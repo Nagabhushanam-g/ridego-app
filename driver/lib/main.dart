@@ -884,6 +884,44 @@ class _DriverHomeState extends State<DriverHome> {
                     ),
                     const SizedBox(height: 8),
                     Text(friendlyDriverStatus),
+                    const SizedBox(height: 8),
+                    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                      stream: driverUid == null
+                          ? null
+                          : rideGoFirestore
+                              .collection('partnerVerifications')
+                              .doc(driverUid)
+                              .snapshots(),
+                      builder: (context, snapshot) {
+                        final review = snapshot.data?.data();
+                        final approved = !snapshot.hasError &&
+                            review?['status'] == 'approved';
+                        if (approved) {
+                          return const Row(
+                            children: [
+                              Icon(Icons.verified_outlined,
+                                  color: Colors.green, size: 18),
+                              SizedBox(width: 8),
+                              Expanded(child: Text('RideGo Partner review approved')),
+                            ],
+                          );
+                        }
+                        return const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Partner documents not verified yet. '
+                                'ONLINE shows test availability, not government approval.',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                     if (rideId != null &&
                         pendingRide != null &&
                         (status == 'DRIVER_ACCEPTED' ||
