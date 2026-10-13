@@ -20,23 +20,38 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'driver';
     }
 
-    // Client-owned profiles must not set staff-controlled review/approval fields.
-    // Future approval workflows must write these fields from a privileged backend.
-    function reviewFields() {
+    // New profiles may contain only app-owned fields. Approval must be
+    // written by a privileged backend, never by a Rider or Partner client.
+    function profileCreateFields() {
       return [
-        'verificationStatus',
-        'verificationReviewedAt',
-        'verificationReviewedBy',
-        'verificationRejectionReason',
-        'partnerApprovalStatus',
-        'partnerApprovedAt',
-        'partnerApprovedBy',
-        'isVerified',
-        'isApproved',
-        'documentsVerified',
-        'rcVerificationStatus',
-        'drivingLicenceVerificationStatus'
+        'uid', 'role', 'fullName', 'phone', 'email',
+        'vehicleType', 'vehicleNumber', 'vehicleModel',
+        'createdAt', 'updatedAt'
       ];
+    }
+
+    function profileUpdateFields() {
+      return [
+        'fullName', 'phone', 'email',
+        'vehicleType', 'vehicleNumber', 'vehicleModel',
+        'updatedAt',
+        'drivingLicenceNumber', 'drivingLicenceExpiryDate',
+        'drivingLicenceSubmittedAt'
+      ];
+    }
+
+    function licenceUpdateValid() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['drivingLicenceNumber', 'drivingLicenceExpiryDate',
+          'drivingLicenceSubmittedAt'])
+        || (
+          resource.data.role == 'driver'
+          && request.resource.data.drivingLicenceNumber is string
+          && request.resource.data.drivingLicenceNumber.matches('^[A-Z0-9-]{8,25}$')
+          && request.resource.data.drivingLicenceExpiryDate is timestamp
+          && request.resource.data.drivingLicenceExpiryDate > request.time
+          && request.resource.data.drivingLicenceSubmittedAt == request.time
+        );
     }
 
     match /profiles/{uid} {
@@ -44,11 +59,13 @@ service cloud.firestore {
       allow create: if isSelf(uid)
         && request.resource.data.uid == uid
         && request.resource.data.role in ['rider', 'driver']
-        && !request.resource.data.keys().hasAny(reviewFields());
+        && request.resource.data.keys().hasOnly(profileCreateFields());
       allow update: if isSelf(uid)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.role == resource.data.role
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(reviewFields());
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(profileUpdateFields())
+        && licenceUpdateValid();
       allow delete: if false;
     }
 
