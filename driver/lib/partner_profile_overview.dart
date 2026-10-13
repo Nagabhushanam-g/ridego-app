@@ -149,11 +149,51 @@ class PartnerProfileOverview extends StatelessWidget {
                 ]),
                 editButton(),
               ]),
-              tabPage([
-                section('Trip history and earnings', Icons.account_balance_wallet_outlined, [
-                  const Text('View completed trips, confirmed cash collections, recorded 10% RideGo commission and Partner net earnings.'),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: db.collection('rideRequests')
+                    .where('driverId', isEqualTo: user.uid).snapshots(),
+                builder: (context, ridesSnapshot) {
+                  Widget summary;
+                  if (ridesSnapshot.hasError) {
+                    summary = const Text('Unable to load earnings summary. Open Trip History for details.');
+                  } else if (!ridesSnapshot.hasData) {
+                    summary = const LinearProgressIndicator();
+                  } else {
+                    final accounted = ridesSnapshot.data!.docs.where((doc) {
+                      final data = doc.data();
+                      return (data['status'] ?? '').toString().toLowerCase() == 'completed' &&
+                          data['paymentMethod'] == 'cash' &&
+                          data['paymentStatus'] == 'paid' &&
+                          data['commissionPaise'] is int &&
+                          data['partnerNetPaise'] is int;
+                    }).toList();
+                    final commission = accounted.fold<int>(
+                        0, (sum, doc) => sum + (doc.data()['commissionPaise'] as int));
+                    final net = accounted.fold<int>(
+                        0, (sum, doc) => sum + (doc.data()['partnerNetPaise'] as int));
+                    final gross = accounted.fold<int>(
+                        0, (sum, doc) => sum +
+                            (doc.data()['grossPaise'] is int
+                                ? doc.data()['grossPaise'] as int
+                                : (doc.data()['commissionPaise'] as int) +
+                                    (doc.data()['partnerNetPaise'] as int)));
+                    summary = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        detail('Accounted cash rides', '${accounted.length}'),
+                        detail('Accounted cash fares', '₹${(gross / 100).toStringAsFixed(2)}'),
+                        detail('RideGo commission (10%)', '₹${(commission / 100).toStringAsFixed(2)}'),
+                        detail('Partner net earnings', '₹${(net / 100).toStringAsFixed(2)}'),
+                        const SizedBox(height: 6),
+                        const Text('All-time recorded cash accounting only. Historical rides without commission records are excluded.'),
+                      ],
+                    );
+                  }
+                  return tabPage([
+                    section('Partner earnings summary', Icons.account_balance_wallet_outlined, [
+                      summary,
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const DriverHistoryScreen(),
@@ -164,8 +204,10 @@ class PartnerProfileOverview extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   const Text('Cash settlement and payouts are not yet available.'),
-                ]),
-              ]),
+                    ]),
+                  ]);
+                },
+              ),
               tabPage([
                 section('Documents', Icons.description_outlined, [
                   const Text('Driving licence, registration certificate (RC), insurance and applicable permits.'),
