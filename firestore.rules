@@ -20,14 +20,35 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'driver';
     }
 
+    // Client-owned profiles must not set staff-controlled review/approval fields.
+    // Future approval workflows must write these fields from a privileged backend.
+    function reviewFields() {
+      return [
+        'verificationStatus',
+        'verificationReviewedAt',
+        'verificationReviewedBy',
+        'verificationRejectionReason',
+        'partnerApprovalStatus',
+        'partnerApprovedAt',
+        'partnerApprovedBy',
+        'isVerified',
+        'isApproved',
+        'documentsVerified',
+        'rcVerificationStatus',
+        'drivingLicenceVerificationStatus'
+      ];
+    }
+
     match /profiles/{uid} {
       allow read: if isSelf(uid);
       allow create: if isSelf(uid)
         && request.resource.data.uid == uid
-        && request.resource.data.role in ['rider', 'driver'];
+        && request.resource.data.role in ['rider', 'driver']
+        && !request.resource.data.keys().hasAny(reviewFields());
       allow update: if isSelf(uid)
         && request.resource.data.uid == resource.data.uid
-        && request.resource.data.role == resource.data.role;
+        && request.resource.data.role == resource.data.role
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(reviewFields());
       allow delete: if false;
     }
 
