@@ -33,10 +33,11 @@ jobs:
                       self.links.append(attrs['href'])
                   if tag == 'link' and 'href' in attrs:
                       self.links.append(attrs['href'])
-                  if tag in ('script', 'iframe') and 'src' in attrs:
+                  if tag in ('script', 'iframe', 'img') and 'src' in attrs:
                       self.links.append(attrs['src'])
           root = Path('website')
           required = ['index.html','preview.html','privacy.html','terms.html','safety.html','support.html','styles.css','script.js']
+          required += ['assets/ridego-route.svg','assets/ridego-rider.svg','assets/ridego-partner.svg']
           for name in required:
               assert (root / name).is_file(), f'Missing: {name}'
           for html in root.glob('*.html'):
@@ -53,6 +54,7 @@ jobs:
         run: |
           mkdir -p ridego-website-preview
           cp website/*.html website/*.css website/*.js ridego-website-preview/
+          cp -r website/assets ridego-website-preview/
           cat > ridego-website-preview/OPEN-WEBSITE-FIRST.txt <<'EOF'
           RIDEGO WEBSITE PREVIEW
 
