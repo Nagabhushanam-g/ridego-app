@@ -52,3 +52,7 @@ The website deliberately has no Firebase keys, sign-in, payment form, or sensiti
 - [ ] Define cancellation/refund policy, grievance handling, account appeals and dispute process.
 - [ ] Confirm statutory and platform requirements with qualified legal review.
 - [ ] Approve final effective-dated documents before making the website public.
+
+## Offline site checks
+
+Run `python3 website/check_site.py` from the repository root to check local page links, anchors, asset references, image alt attributes, and basic page structure. This is a static smoke test, not a replacement for visual browser/device testing or legal review.
