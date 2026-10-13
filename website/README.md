@@ -23,6 +23,7 @@ The website deliberately has no Firebase keys, sign-in, payment form, or sensiti
 
 - Responsive homepage and mobile navigation implemented.
 - Separate Rider and Partner app sections with SVG icons. The homepage hero uses the same promotional JPG shipped inside both APKs.
+- The Our Apps section uses CSS phone illustrations, **not actual APK screenshots**. Replace these only after approved screenshot capture and review.
 - Partner description includes planned consent-based DigiLocker RC and Driving Licence verification; clearly states that it is not yet available.
 - Verification navigation anchor added; draft Privacy, Safety, Terms and Support pages describe proposed checks without claiming live verification.
 - Mobile tap targets, readable text contrast, and reduced-motion preferences improved.
@@ -35,6 +36,19 @@ The website deliberately has no Firebase keys, sign-in, payment form, or sensiti
 - [ ] Confirm official branding, trademark and integration-description requirements before publication.
 - [ ] Confirm consent, privacy, document-retention and review procedures.
 - [ ] Replace coming-soon text only after a real end-to-end government-document verification test.
+
+## Real APK screenshot handoff
+
+The website phone illustrations are intentionally HTML/CSS so they work offline and at mobile widths. To upgrade them to authentic product screenshots:
+
+1. Capture a **Rider** screen showing the app home or trip-request interface, with test-only locations and no personal data.
+2. Capture a **Partner** screen showing the app dashboard or trip management interface, with no phone numbers, real earnings, names, or other personal data.
+3. Crop each screenshot to the app display (exclude Android navigation bars and notification banners where practical).
+4. Optimize the screenshots for the web and store them in `website/assets/` with descriptive names and alt text.
+5. Replace the illustrative content inside `.phone-screen` for each app with its corresponding screenshot. Keep the blue/green card styling and the Coming soon notices.
+6. Review at 360px, 390px and desktop widths; rerun the website preview validation workflow.
+
+Do not use the generated promotional concept as proof of an implemented app feature. No public APK download links or Play Store badges should be added before release.
 
 ## Next review before publication
 
