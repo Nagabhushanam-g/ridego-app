@@ -16,6 +16,7 @@ class PartnerDocumentsSection extends StatefulWidget {
 class _PartnerDocumentsSectionState extends State<PartnerDocumentsSection> {
   static const maxBytes = 5 * 1024 * 1024;
   final _licence = TextEditingController();
+  DateTime? _licenceExpiry;
   bool _rcSubmitted = false;
   bool _licenceSaved = false;
   bool _busy = false;
@@ -46,9 +47,14 @@ class _PartnerDocumentsSectionState extends State<PartnerDocumentsSection> {
         app: Firebase.app(), databaseId: 'firestore-db-2');
       final profile = await db.collection('profiles').doc(uid).get();
       final number = (profile.data()?['drivingLicenceNumber'] ?? '').toString();
+      final storedExpiry = profile.data()?['drivingLicenceExpiryDate'];
+      final expiry = storedExpiry is Timestamp ? storedExpiry.toDate() : null;
       if (mounted) {
         _licence.text = number;
-        setState(() => _licenceSaved = number.isNotEmpty);
+        setState(() {
+          _licenceExpiry = expiry;
+          _licenceSaved = number.isNotEmpty && expiry != null;
+        });
       }
     } catch (_) {
       if (mounted) setState(() => _error = 'Unable to load licence details.');
@@ -71,18 +77,25 @@ class _PartnerDocumentsSectionState extends State<PartnerDocumentsSection> {
       setState(() => _error = 'Enter a valid driving licence number (8–25 letters/digits).');
       return;
     }
+    final expiry = _licenceExpiry;
+    final today = DateUtils.dateOnly(DateTime.now());
+    if (expiry == null || !DateUtils.dateOnly(expiry).isAfter(today)) {
+      setState(() => _error = 'Select a driving licence expiry date after today.');
+      return;
+    }
     setState(() { _busy = true; _error = null; });
     try {
       final db = FirebaseFirestore.instanceFor(
         app: Firebase.app(), databaseId: 'firestore-db-2');
       await db.collection('profiles').doc(uid).update({
         'drivingLicenceNumber': number,
+        'drivingLicenceExpiryDate': Timestamp.fromDate(DateUtils.dateOnly(expiry)),
         'drivingLicenceSubmittedAt': FieldValue.serverTimestamp(),
       });
       if (mounted) {
         setState(() { _licenceSaved = true; _licence.text = number; });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Licence number saved. Verification pending.')));
+          const SnackBar(content: Text('Licence number and expiry saved. Verification pending.')));
       }
     } catch (_) {
       if (mounted) setState(() => _error = 'Unable to save licence number.');
@@ -148,10 +161,35 @@ class _PartnerDocumentsSectionState extends State<PartnerDocumentsSection> {
             if (_licenceSaved) setState(() => _licenceSaved = false);
           },
         ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : () async {
+            final today = DateUtils.dateOnly(DateTime.now());
+            final selected = await showDatePicker(
+              context: context,
+              initialDate: _licenceExpiry != null && _licenceExpiry!.isAfter(today)
+                  ? _licenceExpiry! : today.add(const Duration(days: 1)),
+              firstDate: today.add(const Duration(days: 1)),
+              lastDate: DateTime(today.year + 30, 12, 31),
+              helpText: 'Driving licence expiry date',
+            );
+            if (selected != null && mounted) {
+              setState(() {
+                _licenceExpiry = selected;
+                _licenceSaved = false;
+              });
+            }
+          },
+          icon: const Icon(Icons.event_outlined),
+          label: Text(_licenceExpiry == null
+              ? 'SELECT LICENCE EXPIRY DATE'
+              : 'Expiry: ${_licenceExpiry!.day.toString().padLeft(2, '0')}/${_licenceExpiry!.month.toString().padLeft(2, '0')}/${_licenceExpiry!.year}'),
+        ),
+        const SizedBox(height: 8),
         FilledButton.icon(
           onPressed: _busy ? null : _saveLicence,
           icon: const Icon(Icons.save_outlined),
-          label: const Text('SAVE LICENCE NUMBER'),
+          label: const Text('SAVE LICENCE DETAILS'),
         ),
         const SizedBox(height: 20),
         Text('Registration certificate (RC)',
