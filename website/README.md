@@ -4,7 +4,9 @@ Static, responsive marketing website for RideGo. This is a **development preview
 
 ## Preview locally
 
-Open `index.html` in a browser, or from this directory run `python3 -m http.server 8080` and visit `http://localhost:8080`.
+Extract the complete preview ZIP. Open `website/preview.html`, then select **Open RideGo homepage**. Alternatively, open `website/index.html` directly in Chrome. For a mobile-width preview, press F12 and then Ctrl+Shift+M in Chrome. Keep all website files together in the extracted folder.
+
+To serve locally instead, run `python3 -m http.server 8080` from the website directory and visit `http://localhost:8080`.
 
 ## Release checklist
 
