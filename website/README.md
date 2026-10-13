@@ -6,7 +6,7 @@ Static, responsive marketing website for RideGo. This is a **development preview
 
 Extract the complete preview ZIP. Open `website/preview.html`, then select **Open RideGo homepage**. Alternatively, open `website/index.html` directly in Chrome. For a mobile-width preview, press F12 and then Ctrl+Shift+M in Chrome. Keep all website files together in the extracted folder.
 
-To serve locally instead, run `python3 -m http.server 8080` from the website directory and visit `http://localhost:8080`.
+For a source-checkout preview, first copy `rider/assets/images/ridego_promo.jpg` to `website/assets/ridego_promo.jpg` (the GitHub website-preview workflow does this automatically). Then open the page.\n\nTo serve locally instead, run `python3 -m http.server 8080` from the website directory and visit `http://localhost:8080`.
 
 ## Release checklist
 
@@ -22,7 +22,7 @@ The website deliberately has no Firebase keys, sign-in, payment form, or sensiti
 ## Current development status
 
 - Responsive homepage and mobile navigation implemented.
-- Separate Rider and Partner app sections with SVG icons.
+- Separate Rider and Partner app sections with SVG icons. The homepage hero uses the same promotional JPG shipped inside both APKs.
 - Partner description includes planned consent-based DigiLocker RC and Driving Licence verification; clearly states that it is not yet available.
 - Verification navigation anchor added; draft Privacy, Safety, Terms and Support pages describe proposed checks without claiming live verification.
 - Mobile tap targets, readable text contrast, and reduced-motion preferences improved.
