@@ -206,7 +206,36 @@ class PartnerProfileOverview extends StatelessWidget {
                   const Text('Do not enter bank details until secure setup is available.'),
                 ]),
                 section('Verification', Icons.verified_user_outlined, [
-                  const Text('Partner document review and approval: Not yet configured'),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: db.collection('partnerVerifications').doc(user.uid).snapshots(),
+                    builder: (context, reviewSnapshot) {
+                      if (reviewSnapshot.hasError) {
+                        return const Text('Unable to load verification status. Approval is not confirmed.');
+                      }
+                      if (!reviewSnapshot.hasData) {
+                        return const LinearProgressIndicator();
+                      }
+                      final review = reviewSnapshot.data!.data();
+                      if (review == null) {
+                        return const Text('Not verified • Government document checks are not yet complete.');
+                      }
+                      final status = (review['status'] ?? 'pending').toString();
+                      final label = switch (status) {
+                        'approved' => 'Approved by RideGo review',
+                        'rejected' => 'Review rejected',
+                        'needs_review' => 'Additional review required',
+                        _ => 'Verification pending',
+                      };
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(label),
+                          const SizedBox(height: 6),
+                          const Text('Only RideGo authorized review can update this status. A document upload alone is not approval.'),
+                        ],
+                      );
+                    },
+                  ),
                 ]),
               ]),
             ],
