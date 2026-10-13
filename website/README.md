@@ -42,3 +42,13 @@ The website deliberately has no Firebase keys, sign-in, payment form, or sensiti
 - [ ] Confirm local emergency guidance and the official incident-response process.
 - [ ] Add verified support email/phone and response expectations after staffing is ready.
 - [ ] Obtain review and approval of all safety, privacy and terms text before publication.
+
+## Privacy and terms review checklist
+
+- [x] Add preliminary privacy topics: account data, ride/location data, device tokens and Partner document details.
+- [x] Add preliminary terms topics: Rider/Partner responsibilities, cash accounting and unavailable payout workflows.
+- [ ] Confirm legal entity, registered address, contact details and applicable jurisdiction.
+- [ ] Audit actual production data collection, third-party processors, permissions, retention and deletion mechanisms.
+- [ ] Define cancellation/refund policy, grievance handling, account appeals and dispute process.
+- [ ] Confirm statutory and platform requirements with qualified legal review.
+- [ ] Approve final effective-dated documents before making the website public.
