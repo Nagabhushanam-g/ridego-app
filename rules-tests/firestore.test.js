@@ -82,3 +82,17 @@ test('New client profile cannot include an approval field', async () => {
     ...profile, uid: 'new-partner'
   }));
 });
+
+test('Partner may read but never write backend verification records', async () => {
+  const verification = {status: 'pending', method: 'digilocker', reviewed: false};
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(databaseId), 'partnerVerifications', uid), verification);
+  });
+  const {getDoc, deleteDoc} = await import('firebase/firestore');
+  const ownerRef = doc(partner(), 'partnerVerifications', uid);
+  await assertSucceeds(getDoc(ownerRef));
+  await assertFails(updateDoc(ownerRef, {status: 'approved'}));
+  await assertFails(deleteDoc(ownerRef));
+  await assertFails(setDoc(doc(partner(), 'partnerVerifications', 'other-id'), verification));
+  await assertFails(getDoc(doc(outsider(), 'partnerVerifications', uid)));
+});
