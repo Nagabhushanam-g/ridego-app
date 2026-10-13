@@ -18,7 +18,7 @@ async function reserveDigiLockerAttempt({ db, uid, now = Date.now() }) {
     const snap = await tx.get(ref);
     const prev = snap.exists ? snap.data() : null;
     const windowStart = Number.isSafeInteger(prev?.windowStartMs) ? prev.windowStartMs : now;
-    const reset = now < windowStart || now - windowStart >= WINDOW_MS;
+    const reset = !prev || now < windowStart || now - windowStart >= WINDOW_MS;
     const count = reset ? 0 : (Number.isSafeInteger(prev?.count) ? prev.count : MAX_ATTEMPTS_PER_WINDOW);
     const lastAttemptMs = reset ? null : prev?.lastAttemptMs;
     if (lastAttemptMs != null && (!Number.isSafeInteger(lastAttemptMs) ||
