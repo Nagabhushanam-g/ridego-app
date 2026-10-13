@@ -8,3 +8,7 @@
 
 /* Shared RideGo vector illustration sizing */
 .hero-art{background:transparent;min-height:0;overflow:hidden;display:flex;align-items:center}.hero-art img{display:block;width:100%;height:auto;border-radius:30px}.feature-icon-img{display:block;width:54px;height:54px;margin-bottom:15px}.app-icon-img{display:block;width:64px;height:64px;margin-bottom:14px;border-radius:15px}
+
+/* Mobile navigation and narrow-screen safeguards */
+@media(max-width:800px){.nav-links.open{border-top:1px solid var(--border);padding-top:8px}.nav-links a{border-radius:8px;padding:11px 10px}.nav-links a:hover{background:var(--pale)}.menu-toggle{min-height:44px;min-width:86px;cursor:pointer}.hero-grid{gap:24px}.hero-art img{max-width:520px;margin:auto}.hero h1{overflow-wrap:normal}}
+@media(max-width:390px){.brand{font-size:1.3rem}.hero h1{font-size:clamp(2rem,9vw,2.45rem)}.actions .button{padding:12px 15px}.footer-links{gap:12px}}
