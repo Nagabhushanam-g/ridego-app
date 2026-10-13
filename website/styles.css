@@ -2,3 +2,6 @@
 .legal-page{max-width:800px}.legal-page h1{font-size:clamp(2.3rem,5vw,3.7rem)}.legal-page h2{font-size:1.55rem}.legal-page>.feature-panel{margin:26px 0}.footer-links{display:flex;flex-wrap:wrap;gap:15px}.footer-links a:hover{text-decoration:underline}
 
 .section-lead{max-width:670px;color:var(--muted);font-size:1.05rem}.nav-links a:focus-visible,.footer-links a:focus-visible{outline:3px solid #ef9c35;outline-offset:5px}.button:hover{filter:brightness(.93)}.button:focus-visible{outline:3px solid #ef9c35;outline-offset:4px}.card,.feature-panel{overflow-wrap:anywhere}@media(max-width:520px){.hero{padding:42px 0}.hero-art{min-height:250px}.section{padding:48px 0}.card,.feature-panel{padding:22px}.wrap{width:min(1120px,calc(100% - 28px))}}
+
+/* Desktop hero refinement after visual review */
+@media(min-width:801px){.hero{padding:68px 0}.hero-grid{gap:48px}.hero h1{font-size:clamp(2.8rem,4.45vw,4rem);line-height:1.14;max-width:680px}.hero-art{min-height:330px}}@media(max-width:800px){.hero h1{font-size:clamp(2.4rem,7.5vw,3.4rem)}}
