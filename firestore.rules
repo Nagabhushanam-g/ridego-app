@@ -69,6 +69,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Verification records are created/updated only by privileged server
+    // processes (Admin SDK bypasses these client rules). Partners can read
+    // their own status but cannot create, approve, or alter review evidence.
+    match /partnerVerifications/{uid} {
+      allow get: if isSelf(uid);
+      allow list, create, update, delete: if false;
+    }
+
     match /users/{uid} {
       allow read: if isSelf(uid);
       allow create, update: if isSelf(uid)
