@@ -96,3 +96,23 @@ test('Partner may read but never write backend verification records', async () =
   await assertFails(setDoc(doc(partner(), 'partnerVerifications', 'other-id'), verification));
   await assertFails(getDoc(doc(outsider(), 'partnerVerifications', uid)));
 });
+
+
+test('Clients cannot access DigiLocker sessions or rate limits', async () => {
+  const {getDoc, deleteDoc} = await import('firebase/firestore');
+  for (const collection of ['digilockerAuthorizationSessions', 'digilockerPartnerRateLimits']) {
+    const id = collection === 'digilockerPartnerRateLimits' ? uid : 'session-test';
+    const target = doc(partner(), collection, id);
+    await assertFails(getDoc(target));
+    await assertFails(setDoc(target, {uid, consumed: false}));
+    await assertFails(updateDoc(target, {consumed: true}));
+    await assertFails(deleteDoc(target));
+    await assertFails(getDoc(doc(outsider(), collection, id)));
+  }
+});
+
+test('Clients cannot set DigiLocker verification approval on their own profile', async () => {
+  for (const field of ['digilockerVerified', 'rcVerified', 'drivingLicenceVerified', 'documentReviewStatus']) {
+    await assertFails(updateDoc(ref(partner()), {[field]: true}));
+  }
+});
