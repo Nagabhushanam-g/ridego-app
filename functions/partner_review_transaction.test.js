@@ -10,7 +10,7 @@ const decision = preparePartnerReviewDecision({
   reasonCode: 'verification_complete', now
 });
 
-function fakeDb({authorized = true, isPartner = true, fail = false, existingReview = false} = {}) {
+function fakeDb({authorized = true, isPartner = true, fail = false, existingReview = false, evidenceVerified = true, evidencePartnerUid = 'partner-1'} = {}) {
   const writes = [];
   const db = {
     writes,
@@ -22,6 +22,10 @@ function fakeDb({authorized = true, isPartner = true, fail = false, existingRevi
       const tx = {
         async get(ref) {
           if (fail) throw new Error('private database details');
+          if (ref.name === 'partnerReviewEvidence') return {
+            exists: true,
+            get: key => ({partnerUid: evidencePartnerUid, verified: evidenceVerified, revoked: false})[key]
+          };
           if (ref.name === 'partnerVerifications') return {exists: existingReview};
           if (ref.name === 'partnerReviewers') {
             return {exists: true, get: key => ({active: authorized, role: 'partner_reviewer'})[key]};
@@ -92,6 +96,18 @@ test('approval requires evidence reference and rejects forged reason', async () 
     const result = await recordPartnerReview({
       db, decision, evidenceIds: ['rc-evidence'], now, ...change
     });
+    assert.equal(result.ok, false);
+    assert.equal(db.writes.length, 0);
+  }
+});
+
+test('rejects unverified and cross-partner evidence', async () => {
+  for (const options of [
+    {evidenceVerified: false},
+    {evidencePartnerUid: 'another-partner'}
+  ]) {
+    const db = fakeDb(options);
+    const result = await recordPartnerReview({db, decision, evidenceIds: ['rc-evidence'], now});
     assert.equal(result.ok, false);
     assert.equal(db.writes.length, 0);
   }
