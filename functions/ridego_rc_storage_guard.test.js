@@ -10,11 +10,10 @@ const path = require('node:path');
 const rules = fs.readFileSync(path.join(__dirname, '..', 'storage.rules'), 'utf8');
 
 test('only registration certificate path is explicitly writable', () => {
-  const paths = [...rules.matchAll(/match\s+\/([^\s{]+(?:\{[^}]+\}[^\s{]*)*)\s*\{/g)]
-    .map(match => match[1]);
-  assert.ok(paths.includes('partnerDocuments/{uid}/registrationCertificate'));
-  assert.ok(paths.includes('{allPaths=**}'));
-  assert.equal(paths.filter(p => p.startsWith('partnerDocuments/')).length, 1);
+  assert.match(rules, /match\s+\/partnerDocuments\/\{uid\}\/registrationCertificate\s*\{/);
+  assert.match(rules, /match\s+\/\{allPaths=\*\*\}\s*\{/);
+  const explicitPaths = [...rules.matchAll(/match\s+\/partnerDocuments\//g)];
+  assert.equal(explicitPaths.length, 1, 'Review any additional Partner document paths');
 });
 
 test('RC writes require owner, image MIME, nonempty data and 5 MB limit', () => {
