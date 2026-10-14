@@ -18,6 +18,10 @@ test('two simultaneous first reviews create only one verification and audit entr
   await Promise.all(reviewers.map(uid =>
     db.collection('partnerReviewers').doc(uid).set({active: true, role: 'partner_reviewer'})
   ));
+  const evidenceId = 'rc-' + suffix;
+  await db.collection('partnerReviewEvidence').doc(evidenceId).set({
+    partnerUid, verified: true, revoked: false
+  });
   const now = Date.now();
   const decisions = reviewers.map((reviewerUid, i) =>
     preparePartnerReviewDecision({
@@ -28,7 +32,7 @@ test('two simultaneous first reviews create only one verification and audit entr
     })
   );
   const results = await Promise.all(decisions.map(decision =>
-    recordPartnerReview({db, decision, evidenceIds: ['rc-evidence'], now})
+    recordPartnerReview({db, decision, evidenceIds: [evidenceId], now})
   ));
   assert.equal(results.filter(x => x.ok).length, 1);
   const verification = await db.collection('partnerVerifications').doc(partnerUid).get();
