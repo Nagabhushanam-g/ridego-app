@@ -138,3 +138,47 @@ test('verified RC alone cannot approve Partner in Firestore', async () => {
   assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).exists, false);
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
 });
+
+
+test('expired revoked and cross-Partner DL cannot approve even with valid RC', async () => {
+  const suffix = Date.now().toString(36) + '-dl-invalid';
+  const partnerUid = 'partner-' + suffix;
+  const reviewerUid = 'reviewer-' + suffix;
+  const now = Date.now();
+  await db.collection('profiles').doc(partnerUid).set({role: 'driver'});
+  await db.collection('partnerReviewers').doc(reviewerUid).set({active: true, role: 'partner_reviewer'});
+  const rcId = 'rc-' + suffix;
+  const dlId = 'dl-' + suffix;
+  const base = {
+    partnerUid, verified: true, revoked: false, source: 'digilocker',
+    issuer: 'trusted-service', sourceReference: 'ref-123',
+    verifiedAtMs: now - 1000, expiresAtMs: now + 86400000
+  };
+  await db.collection('partnerReviewEvidence').doc(rcId).set({
+    ...base, documentType: 'registration_certificate'
+  });
+  const decision = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid, status: 'approved',
+    reasonCode: 'verification_complete', now
+  });
+  for (const [reason, overrides] of [
+    ['expired', {expiresAtMs: now - 1}],
+    ['revoked', {revoked: true}],
+    ['wrong owner', {partnerUid: 'another-partner'}],
+    ['unverified', {verified: false}],
+    ['future verification', {verifiedAtMs: now + 1}]
+  ]) {
+    await db.collection('partnerReviewEvidence').doc(dlId).set({
+      ...base, documentType: 'driving_licence', ...overrides
+    });
+    const result = await recordPartnerReview({db, decision, evidenceIds: [rcId, dlId], now});
+    assert.equal(result.ok, false, reason);
+    assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).exists, false, reason);
+  }
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
+  await db.collection('partnerReviewEvidence').doc(dlId).set({
+    ...base, documentType: 'driving_licence'
+  });
+  assert.deepEqual(await recordPartnerReview({db, decision, evidenceIds: [rcId, dlId], now}), {ok: true});
+  assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).get('status'), 'approved');
+});
