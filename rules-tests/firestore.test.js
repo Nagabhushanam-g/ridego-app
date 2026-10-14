@@ -130,3 +130,20 @@ test('Partner and other clients cannot read or mutate review evidence, reviewer 
     }
   }
 });
+
+
+test('No client can read or forge Partner online authorization grants', async () => {
+  const {getDoc, deleteDoc} = await import('firebase/firestore');
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(databaseId), 'partnerOnlineAuthorizations', uid), {
+      authorized: true, reviewRevision: 1, evidenceIds: ['rc-test', 'dl-test']
+    });
+  });
+  for (const db of [partner(), outsider()]) {
+    const target = doc(db, 'partnerOnlineAuthorizations', uid);
+    await assertFails(getDoc(target));
+    await assertFails(setDoc(target, {authorized: true}));
+    await assertFails(updateDoc(target, {authorized: true}));
+    await assertFails(deleteDoc(target));
+  }
+});
