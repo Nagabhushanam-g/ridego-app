@@ -47,3 +47,13 @@ The app displays **Coming soon** information, not a clickable login or simulated
 - GitHub contains a preparation-only DigiLocker UI and this integration plan; there is no live authorization callback or issued-document retrieval implementation in the repository.
 - No live Firebase console inspection or DigiLocker Requester credential verification has been completed in this review.
 - Therefore, do **not** label DigiLocker retrieval as tested, connected or verified yet.
+
+## Backend preparation status (14 October 2026)
+
+- Preparation-only Firebase helpers create one-time, 10-minute OAuth state sessions, store only SHA-256 state hashes, validate Partner identity using Firebase Auth and the `profiles` role, and atomically enforce a 60-second cooldown and five requests per hour.
+- An inactive callable adapter maps authorization and rate-limit failures to safe error codes. It is **not exported** from `functions/index.js`.
+- The internal callback coordinator resolves state hashes to a unique server-owned session, rejects malformed/missing/replayed/expired states, and consumes the session transactionally before any future token exchange. **No public HTTP callback or DigiLocker API call exists.**
+- Bounded expired-session cleanup is implemented as an inactive helper, not a scheduled function. The cleanup uses `createdAtMs` and deletes expired sessions in batches of up to 500; an operator must plan scheduling, monitoring, and deletion policy before enabling it.
+- GitHub CI runs Node unit tests and Firestore Emulator tests for concurrent callbacks, session quota, and cleanup. Passing tests validate local logic, **not** official DigiLocker integration or production readiness.
+- The OAuth authorization code currently appears only as an internal server-side callback result; future integration must keep it out of logs, client responses and persistent documents, and handle provider failures securely.
+- **Before activation:** confirm Requester approval, exact provider OAuth requirements and redirect URI, approved scopes, secrets management, consent/privacy and retention requirements, production IAM/rules, abuse protection, end-to-end sandbox testing and explicit deployment approval.
