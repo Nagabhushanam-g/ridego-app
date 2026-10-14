@@ -3,6 +3,7 @@
 // Inactive, server-only revision-aware transition helper. Not exported by index.js.
 // Never accept reviewer authorization, evidence verification or revision from a client.
 const {preparePartnerReviewDecision} = require('./partner_review_policy');
+const {validatePartnerEvidence} = require('./partner_review_evidence');
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 async function transitionPendingPartnerReview({db, decision, evidenceIds, now, expectedRevision}) {
@@ -50,8 +51,7 @@ async function transitionPendingPartnerReview({db, decision, evidenceIds, now, e
         throw new Error('stale-or-ineligible-review');
       }
       if (policy.record.status === 'approved' && evidence.some(doc =>
-        !doc.exists || doc.get('partnerUid') !== partnerUid ||
-        doc.get('verified') !== true || doc.get('revoked') === true)) {
+        !validatePartnerEvidence(doc, {partnerUid, now}))) {
         throw new Error('evidence-not-verified');
       }
       const update = {
