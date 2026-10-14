@@ -57,6 +57,7 @@ class _DriverHomeState extends State<DriverHome> {
   StreamSubscription? rideSubscription;
   Map<String, dynamic>? pendingRide;
   bool noInternet = false;
+  bool acceptingRide = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   @override
@@ -305,7 +306,8 @@ class _DriverHomeState extends State<DriverHome> {
       return;
     }
     final id = rideId;
-    if (id == null || driverUid == null) return;
+    if (id == null || driverUid == null || acceptingRide) return;
+    setState(() => acceptingRide = true);
     try {
       await rideGoFirestore.runTransaction((transaction) async {
         final ref = rideGoFirestore.collection('rideRequests').doc(id);
@@ -335,6 +337,8 @@ class _DriverHomeState extends State<DriverHome> {
         status = online ? 'Online — waiting for rides' : 'Offline';
       });
       if (online) watchRideRequests();
+    } finally {
+      if (mounted) setState(() => acceptingRide = false);
     }
   }
 
@@ -524,8 +528,8 @@ class _DriverHomeState extends State<DriverHome> {
                                 ' km',
                           ),
                           trailing: FilledButton(
-                            onPressed: noInternet ? null : accept,
-                            child: const Text('ACCEPT'),
+                            onPressed: noInternet || acceptingRide ? null : accept,
+                            child: Text(acceptingRide ? 'ACCEPTING…' : 'ACCEPT'),
                           ),
                         ),
                       ),
