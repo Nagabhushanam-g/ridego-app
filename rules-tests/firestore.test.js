@@ -147,3 +147,26 @@ test('No client can read or forge Partner online authorization grants', async ()
     await assertFails(deleteDoc(target));
   }
 });
+
+
+test('Migration baseline: existing Partner can still update own online preference', async () => {
+  const userRef = doc(partner(), 'users', uid);
+  await assertSucceeds(setDoc(userRef, {
+    uid, isOnline: true, availabilityUpdatedAt: serverTimestamp()
+  }, {merge: true}));
+  await assertSucceeds(updateDoc(userRef, {
+    isOnline: false, availabilityUpdatedAt: serverTimestamp()
+  }));
+});
+
+test('Migration baseline: other users cannot change a Partner online preference', async () => {
+  const userRef = doc(outsider(), 'users', uid);
+  await assertFails(updateDoc(userRef, {isOnline: true}));
+  await assertFails(setDoc(userRef, {uid, isOnline: true}, {merge: true}));
+});
+
+test('Migration baseline: Partner cannot impersonate another uid in own user record', async () => {
+  await assertFails(setDoc(doc(partner(), 'users', uid), {
+    uid: 'someone-else', isOnline: true
+  }, {merge: true}));
+});
