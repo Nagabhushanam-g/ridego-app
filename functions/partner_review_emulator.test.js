@@ -60,3 +60,50 @@ test('inactive reviewer cannot create verification or audit', async () => {
   assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).exists, false);
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
 });
+
+test('unverified or cross-partner evidence cannot approve or write audit', async () => {
+  const suffix = Date.now().toString(36) + '-evidence';
+  const partnerUid = 'partner-' + suffix;
+  const reviewerUid = 'reviewer-' + suffix;
+  await db.collection('profiles').doc(partnerUid).set({uid: partnerUid, role: 'driver'});
+  await db.collection('partnerReviewers').doc(reviewerUid).set({active: true, role: 'partner_reviewer'});
+  const now = Date.now();
+  const decision = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid,
+    status: 'approved', reasonCode: 'verification_complete', now
+  });
+  for (const [kind, evidence] of [
+    ['unverified', {partnerUid, verified: false, revoked: false}],
+    ['other-partner', {partnerUid: 'another-partner', verified: true, revoked: false}],
+    ['revoked', {partnerUid, verified: true, revoked: true}]
+  ]) {
+    const evidenceId = kind + '-' + suffix;
+    await db.collection('partnerReviewEvidence').doc(evidenceId).set(evidence);
+    const result = await recordPartnerReview({db, decision, evidenceIds: [evidenceId], now});
+    assert.equal(result.ok, false, kind);
+  }
+  assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).exists, false);
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
+});
+
+test('existing pending verification is not overwritten by initial-review helper', async () => {
+  const suffix = Date.now().toString(36) + '-pending';
+  const partnerUid = 'partner-' + suffix;
+  const reviewerUid = 'reviewer-' + suffix;
+  await db.collection('profiles').doc(partnerUid).set({uid: partnerUid, role: 'driver'});
+  await db.collection('partnerReviewers').doc(reviewerUid).set({active: true, role: 'partner_reviewer'});
+  await db.collection('partnerVerifications').doc(partnerUid).set({status: 'pending'});
+  const evidenceId = 'rc-' + suffix;
+  await db.collection('partnerReviewEvidence').doc(evidenceId).set({
+    partnerUid, verified: true, revoked: false
+  });
+  const now = Date.now();
+  const decision = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid,
+    status: 'approved', reasonCode: 'verification_complete', now
+  });
+  const result = await recordPartnerReview({db, decision, evidenceIds: [evidenceId], now});
+  assert.equal(result.ok, false);
+  assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).get('status'), 'pending');
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
+});
