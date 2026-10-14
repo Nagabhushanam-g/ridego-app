@@ -52,7 +52,7 @@ jobs:
       - name: Test cash commission accounting
         run: npm --prefix functions install --no-audit --no-fund && node --test functions/commission.test.js functions/cash_confirmation_policy.test.js
       - name: Test DigiLocker preparation safeguards
-        run: node --test functions/digilocker_state.test.js functions/digilocker_session.test.js functions/digilocker_callback.test.js functions/digilocker_callback_flow.test.js functions/digilocker_session_create.test.js functions/digilocker_session_store.test.js functions/digilocker_partner_session.test.js functions/digilocker_cleanup.test.js functions/digilocker_rate_limit.test.js
+        run: node --test functions/digilocker_state.test.js functions/digilocker_session.test.js functions/digilocker_callback.test.js functions/digilocker_callback_flow.test.js functions/digilocker_session_create.test.js functions/digilocker_session_store.test.js functions/digilocker_partner_session.test.js functions/digilocker_cleanup.test.js functions/digilocker_rate_limit.test.js functions/digilocker_callable_adapter.test.js
       - name: Check package metadata
         run: node -e "const p=require('./functions/package.json');if(!p.dependencies['firebase-functions'] || !p.dependencies['firebase-admin'])process.exit(1)"
 
