@@ -14,10 +14,10 @@ if (!getApps().length) initializeApp({ projectId: 'ridego-digilocker-security-te
 const db = getFirestore('firestore-db-2');
 
 test('cleanup removes expired sessions in bounded batches but preserves fresh sessions', async () => {
-  // Use a future test clock to avoid interacting with sessions created by
-  // parallel Emulator test files.
-  const clock = Date.now() + 48 * 60 * 60 * 1000;
-  const uid = 'cleanup-partner-' + clock;
+  // Use an old test clock so parallel Emulator tests with current-time
+  // sessions cannot be accidentally deleted by this global cleanup query.
+  const clock = 2000000;
+  const uid = 'cleanup-partner-' + Date.now();
   const old1 = await persistAuthorizationSession({ db, uid, documentType: 'dl', now: clock - 700000 });
   const old2 = await persistAuthorizationSession({ db, uid, documentType: 'rc', now: clock - 650000 });
   const fresh = await persistAuthorizationSession({ db, uid, documentType: 'dl', now: clock - 1000 });
