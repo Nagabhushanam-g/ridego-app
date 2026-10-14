@@ -176,3 +176,57 @@ test('pending approval with RC only is rejected without revision or audit', asyn
   assert.equal(verification.get('reviewRevision'), 0);
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
 });
+
+
+test('pending approval rejects invalid DL even when RC is valid', async () => {
+  const suffix = Date.now().toString(36) + '-invalid-dl';
+  const partnerUid = 'pending-partner-' + suffix;
+  const reviewerUid = 'reviewer-' + suffix;
+  const now = Date.now();
+  await db.collection('profiles').doc(partnerUid).set({role: 'driver'});
+  await db.collection('partnerReviewers').doc(reviewerUid).set({active: true, role: 'partner_reviewer'});
+  await db.collection('partnerVerifications').doc(partnerUid).set({status: 'pending', reviewRevision: 0});
+  const rcId = 'rc-' + suffix;
+  const dlId = 'dl-' + suffix;
+  const base = {
+    partnerUid, verified: true, revoked: false, source: 'digilocker',
+    issuer: 'trusted-service', sourceReference: 'ref-123',
+    verifiedAtMs: now - 1000, expiresAtMs: now + 86400000
+  };
+  await db.collection('partnerReviewEvidence').doc(rcId).set({
+    ...base, documentType: 'registration_certificate'
+  });
+  const decision = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid,
+    status: 'approved', reasonCode: 'verification_complete', now
+  });
+  for (const [reason, overrides] of [
+    ['expired', {expiresAtMs: now - 1}],
+    ['revoked', {revoked: true}],
+    ['wrong owner', {partnerUid: 'other-partner'}],
+    ['unverified', {verified: false}],
+    ['future verification', {verifiedAtMs: now + 1}]
+  ]) {
+    await db.collection('partnerReviewEvidence').doc(dlId).set({
+      ...base, documentType: 'driving_licence', ...overrides
+    });
+    const result = await transitionPendingPartnerReview({
+      db, decision, evidenceIds: [rcId, dlId], now, expectedRevision: 0
+    });
+    assert.equal(result.ok, false, reason);
+    const verification = await db.collection('partnerVerifications').doc(partnerUid).get();
+    assert.equal(verification.get('status'), 'pending', reason);
+    assert.equal(verification.get('reviewRevision'), 0, reason);
+  }
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
+  await db.collection('partnerReviewEvidence').doc(dlId).set({
+    ...base, documentType: 'driving_licence'
+  });
+  assert.deepEqual(await transitionPendingPartnerReview({
+    db, decision, evidenceIds: [rcId, dlId], now, expectedRevision: 0
+  }), {ok: true});
+  const verification = await db.collection('partnerVerifications').doc(partnerUid).get();
+  assert.equal(verification.get('status'), 'approved');
+  assert.equal(verification.get('reviewRevision'), 1);
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 1);
+});
