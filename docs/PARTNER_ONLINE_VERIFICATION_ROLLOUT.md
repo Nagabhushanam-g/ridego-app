@@ -29,3 +29,19 @@ Status: **NOT ENABLED**. This document is a design checklist, not deployment aut
 - `partner_review_recheck.js`: can mark approved Partners `needs_review` and revoke a grant atomically when invoked.
 
 **Important:** None of these helpers is exported as a deployed callable in `functions/index.js`. Existing app GO ONLINE behavior is unchanged. The preparation code is not yet a complete enforcement system; in particular, a read-only check followed by a separate dispatch operation has a time-of-check/time-of-use race. Do not enable enforcement without integrating the gate with actual presence and dispatch state.
+
+## Compatibility test baseline (October 2026)
+
+The Firestore Emulator suite now explicitly tests the current behavior of
+`users/{uid}.isOnline`: a signed-in Partner can write their own online/offline
+choice, another user cannot write it, and the Partner cannot replace their
+`uid` with another account's identifier. This is a **baseline, not a security
+endorsement**: an older client can still set its own online flag without a
+server verification gate. The tests intentionally keep that path working until
+we have a tested, explicit migration and enforcement decision.
+
+**Cutover criterion:** do not restrict `users/{uid}.isOnline` until the Partner
+app's button and restart recovery use the new server endpoint, older app
+versions have a supported upgrade path, and dispatch/presence rules have
+matching integration tests. Then replace these legacy-baseline expectations
+with tests that reject direct client `isOnline: true` writes.
