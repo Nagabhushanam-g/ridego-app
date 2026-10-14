@@ -22,6 +22,13 @@ test('simultaneous pending review transitions commit only one decision and audit
   await db.collection('partnerReviewEvidence').doc(evidenceId).set({
     partnerUid, verified: true, revoked: false, source: 'digilocker', documentType: 'registration_certificate', issuer: 'trusted-service', sourceReference: 'ref-123', verifiedAtMs: Date.now() - 1000, expiresAtMs: Date.now() + 86400000
   });
+  const dlEvidenceId = 'verified-dl-' + suffix;
+  await db.collection('partnerReviewEvidence').doc(dlEvidenceId).set({
+    partnerUid, verified: true, revoked: false, source: 'digilocker',
+    documentType: 'driving_licence', issuer: 'trusted-service',
+    sourceReference: 'ref-456', verifiedAtMs: Date.now() - 1000,
+    expiresAtMs: Date.now() + 86400000
+  });
   await Promise.all(reviewerUids.map(uid =>
     db.collection('partnerReviewers').doc(uid).set({active: true, role: 'partner_reviewer'})
   ));
@@ -34,7 +41,7 @@ test('simultaneous pending review transitions commit only one decision and audit
     })
   );
   const results = await Promise.all(decisions.map(decision =>
-    transitionPendingPartnerReview({db, decision, evidenceIds: [evidenceId], now, expectedRevision: 0})
+    transitionPendingPartnerReview({db, decision, evidenceIds: [evidenceId, dlEvidenceId], now, expectedRevision: 0})
   ));
   assert.equal(results.filter(result => result.ok).length, 1);
   const updated = await db.collection('partnerVerifications').doc(partnerUid).get();
@@ -139,5 +146,33 @@ test('wrong expected revision cannot transition pending verification', async () 
   const verification = await db.collection('partnerVerifications').doc(partnerUid).get();
   assert.equal(verification.get('status'), 'pending');
   assert.equal(verification.get('reviewRevision'), 2);
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
+});
+
+
+test('pending approval with RC only is rejected without revision or audit', async () => {
+  const suffix = Date.now().toString(36) + '-rc-only';
+  const partnerUid = 'pending-partner-' + suffix;
+  const reviewerUid = 'reviewer-' + suffix;
+  const now = Date.now();
+  await db.collection('profiles').doc(partnerUid).set({role: 'driver'});
+  await db.collection('partnerReviewers').doc(reviewerUid).set({active: true, role: 'partner_reviewer'});
+  await db.collection('partnerVerifications').doc(partnerUid).set({status: 'pending', reviewRevision: 0});
+  const rcId = 'rc-' + suffix;
+  await db.collection('partnerReviewEvidence').doc(rcId).set({
+    partnerUid, verified: true, revoked: false, source: 'digilocker',
+    documentType: 'registration_certificate', issuer: 'trusted-service',
+    sourceReference: 'ref-123', verifiedAtMs: now - 1000, expiresAtMs: now + 86400000
+  });
+  const decision = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid,
+    status: 'approved', reasonCode: 'verification_complete', now
+  });
+  assert.equal((await transitionPendingPartnerReview({
+    db, decision, evidenceIds: [rcId], now, expectedRevision: 0
+  })).ok, false);
+  const verification = await db.collection('partnerVerifications').doc(partnerUid).get();
+  assert.equal(verification.get('status'), 'pending');
+  assert.equal(verification.get('reviewRevision'), 0);
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
 });
