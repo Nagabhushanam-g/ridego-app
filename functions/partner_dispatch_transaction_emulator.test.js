@@ -1,0 +1,78 @@
+'use strict';
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const {initializeApp, getApps} = require('firebase-admin/app');
+const {getFirestore} = require('firebase-admin/firestore');
+const {authorizePartnerDispatchTransaction} = require('./partner_dispatch_transaction');
+
+if (!process.env.FIRESTORE_EMULATOR_HOST) throw Error('Firestore Emulator required');
+if (!getApps().length) initializeApp({projectId: 'ridego-partner-review-test'});
+const db = getFirestore('firestore-db-2');
+const now = Date.now();
+const suffix = now.toString(36) + '-dispatch';
+const partnerUid = 'partner-' + suffix;
+const rideId = 'ride-' + suffix;
+const ids = ['rc-' + suffix, 'dl-' + suffix];
+
+async function seed() {
+  await db.collection('profiles').doc(partnerUid).set({role: 'driver'});
+  await db.collection('partnerVerifications').doc(partnerUid).set({
+    status: 'approved', reviewRevision: 1, evidenceIds: ids
+  });
+  await db.collection('partnerOnlineAuthorizations').doc(partnerUid).set({
+    authorized: true, reviewRevision: 1, evidenceIds: ids, expiresAtMs: now + 60000
+  });
+  for (const [i, documentType] of ['registration_certificate', 'driving_licence'].entries()) {
+    await db.collection('partnerReviewEvidence').doc(ids[i]).set({
+      partnerUid, documentType, verified: true, revoked: false,
+      source: 'digilocker', issuer: 'trusted-service', sourceReference: 'ref-123',
+      verifiedAtMs: now - 1000, expiresAtMs: now + 60000
+    });
+  }
+  await db.collection('rideRequests').doc(rideId).set({
+    status: 'requested', driverId: null, riderId: 'rider-test'
+  });
+}
+
+test('inactive dispatch leaves requested ride untouched', async () => {
+  await seed();
+  assert.deepEqual(await authorizePartnerDispatchTransaction({
+    db, partnerUid, rideId, now
+  }), {ok: false, reason: 'enforcement_inactive'});
+  assert.equal((await db.collection('rideRequests').doc(rideId).get()).get('status'), 'requested');
+});
+
+test('revoked evidence prevents dispatch without changing ride', async () => {
+  await db.collection('partnerReviewEvidence').doc(ids[1]).update({revoked: true});
+  const result = await authorizePartnerDispatchTransaction({
+    db, partnerUid, rideId, now, enforcementEnabled: true
+  });
+  assert.equal(result.ok, false);
+  assert.equal((await db.collection('rideRequests').doc(rideId).get()).get('status'), 'requested');
+  await db.collection('partnerReviewEvidence').doc(ids[1]).update({revoked: false});
+});
+
+test('concurrent dispatch attempts accept only one ride', async () => {
+  const results = await Promise.all(Array.from({length: 3}, () =>
+    authorizePartnerDispatchTransaction({
+      db, partnerUid, rideId, now, enforcementEnabled: true
+    })));
+  assert.equal(results.filter(x => x.ok).length, 1);
+  const ride = await db.collection('rideRequests').doc(rideId).get();
+  assert.equal(ride.get('status'), 'accepted');
+  assert.equal(ride.get('driverId'), partnerUid);
+});
+
+test('expired grant blocks a new requested ride', async () => {
+  const secondRideId = rideId + '-expired';
+  await db.collection('rideRequests').doc(secondRideId).set({
+    status: 'requested', driverId: null
+  });
+  await db.collection('partnerOnlineAuthorizations').doc(partnerUid).update({
+    expiresAtMs: now
+  });
+  assert.equal((await authorizePartnerDispatchTransaction({
+    db, partnerUid, rideId: secondRideId, now, enforcementEnabled: true
+  })).ok, false);
+  assert.equal((await db.collection('rideRequests').doc(secondRideId).get()).get('status'), 'requested');
+});
