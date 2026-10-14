@@ -107,3 +107,20 @@ jobs:
         run: npm --prefix rules-tests install --no-audit --no-fund && npm install --no-save firebase-tools
       - name: Run profile authorization tests against emulator
         run: npx firebase emulators:exec --only firestore --project ridego-security-test "npm --prefix rules-tests test"
+
+  partner-review-emulator:
+    name: Test concurrent Partner reviews in Firestore Emulator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Firebase dependencies and CLI
+        run: npm --prefix functions install --no-audit --no-fund && npm install --no-save firebase-tools
+      - name: Run simultaneous Partner reviews against emulator
+        run: npx firebase emulators:exec --only firestore --project ridego-partner-review-test "node --test functions/partner_review_emulator.test.js"
