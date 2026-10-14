@@ -50,9 +50,14 @@ async function transitionPendingPartnerReview({db, decision, evidenceIds, now, e
           (previous.get('reviewRevision') ?? 0) !== expectedRevision) {
         throw new Error('stale-or-ineligible-review');
       }
-      if (policy.record.status === 'approved' && evidence.some(doc =>
-        !validatePartnerEvidence(doc, {partnerUid, now}))) {
-        throw new Error('evidence-not-verified');
+      if (policy.record.status === 'approved') {
+        if (evidence.some(doc => !validatePartnerEvidence(doc, {partnerUid, now}))) {
+          throw new Error('evidence-not-verified');
+        }
+        const types = new Set(evidence.map(doc => doc.get('documentType')));
+        if (!types.has('registration_certificate') || !types.has('driving_licence')) {
+          throw new Error('both-document-types-required');
+        }
       }
       const update = {
         status: policy.record.status, reasonCode: policy.record.reasonCode,
