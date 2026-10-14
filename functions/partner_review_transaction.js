@@ -43,6 +43,7 @@ async function recordPartnerReview({db, decision, evidenceIds, now}) {
       // Evidence IDs are server-owned attestations, not client-supplied file paths.
       // Read each attestation inside the transaction to bind it to this Partner.
       if (decision.record.status === 'approved') {
+        const verifiedTypes = new Set();
         for (const evidenceId of evidenceIds) {
           const evidence = await tx.get(db.collection('partnerReviewEvidence').doc(evidenceId));
           if (!validatePartnerEvidence(evidence, {partnerUid: decision.partnerUid, now})) {
@@ -50,6 +51,13 @@ async function recordPartnerReview({db, decision, evidenceIds, now}) {
             err.code = 'failed-precondition';
             throw err;
           }
+          verifiedTypes.add(evidence.get('documentType'));
+        }
+        if (!verifiedTypes.has('registration_certificate') ||
+            !verifiedTypes.has('driving_licence')) {
+          const err = new Error('both_document_types_required');
+          err.code = 'failed-precondition';
+          throw err;
         }
       }
       // Revalidate the complete decision against server-checked reviewer authority.
