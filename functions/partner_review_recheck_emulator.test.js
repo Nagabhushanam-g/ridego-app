@@ -31,6 +31,9 @@ test('approved Partner stays approved with valid RC and DL, then moves to review
   });
   assert.deepEqual(await recheckApprovedPartnerEvidence({db, partnerUid, now}),
     {ok: true, status: 'approved'});
+  await db.collection('partnerOnlineAuthorizations').doc(partnerUid).set({
+    authorized: true, reviewRevision: 1, evidenceIds: [rcId, dlId]
+  });
   await db.collection('partnerReviewEvidence').doc(dlId).update({revoked: true});
   const attempts = await Promise.all(Array.from({length: 3}, () =>
     recheckApprovedPartnerEvidence({db, partnerUid, now: now + 1})));
@@ -38,6 +41,9 @@ test('approved Partner stays approved with valid RC and DL, then moves to review
   const updated = await db.collection('partnerVerifications').doc(partnerUid).get();
   assert.equal(updated.get('status'), 'needs_review');
   assert.equal(updated.get('reviewRevision'), 2);
+  const online = await db.collection('partnerOnlineAuthorizations').doc(partnerUid).get();
+  assert.equal(online.get('authorized'), false);
+  assert.equal(online.get('invalidationReason'), 'document_evidence_invalid');
   const audit = await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get();
   assert.equal(audit.size, 1);
   assert.equal(audit.docs[0].get('event'), 'partner_evidence_invalidated');
@@ -68,4 +74,29 @@ test('expired evidence triggers review and a second recheck cannot duplicate aud
   assert.deepEqual(await recheckApprovedPartnerEvidence({db, partnerUid, now}),
     {ok: false, errorCode: 'not-approved'});
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 1);
+});
+
+
+test('valid evidence recheck preserves existing online authorization', async () => {
+  const suffix = Date.now().toString(36) + '-online-valid';
+  const partnerUid = 'partner-' + suffix;
+  const now = Date.now();
+  const ids = ['rc-' + suffix, 'dl-' + suffix];
+  for (const [i, type] of ['registration_certificate', 'driving_licence'].entries()) {
+    await db.collection('partnerReviewEvidence').doc(ids[i]).set({
+      partnerUid, verified: true, revoked: false, source: 'digilocker',
+      documentType: type, issuer: 'trusted-service', sourceReference: 'ref-123',
+      verifiedAtMs: now - 1000, expiresAtMs: now + 86400000
+    });
+  }
+  await db.collection('partnerVerifications').doc(partnerUid).set({
+    status: 'approved', reviewRevision: 1, evidenceIds: ids
+  });
+  await db.collection('partnerOnlineAuthorizations').doc(partnerUid).set({
+    authorized: true, reviewRevision: 1, evidenceIds: ids
+  });
+  assert.deepEqual(await recheckApprovedPartnerEvidence({db, partnerUid, now}),
+    {ok: true, status: 'approved'});
+  assert.equal((await db.collection('partnerOnlineAuthorizations').doc(partnerUid).get()).get('authorized'), true);
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
 });
