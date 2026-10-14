@@ -3,6 +3,7 @@
 // Inactive server-only transaction helper. No production export.
 // Caller must provide a decision prepared by trusted reviewer authorization.
 // Evidence is represented only by server-validated opaque reference IDs.
+const {preparePartnerReviewDecision} = require('./partner_review_policy');
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 const STATUS = new Set(['pending', 'needs_review', 'approved', 'rejected']);
 
@@ -17,7 +18,8 @@ async function recordPartnerReview({db, decision, evidenceIds, now}) {
       decision.record.reviewedAtMs !== now ||
       !Array.isArray(evidenceIds) || evidenceIds.length > 10 ||
       !evidenceIds.every(id => typeof id === 'string' && ID.test(id)) ||
-      new Set(evidenceIds).size !== evidenceIds.length) {
+      new Set(evidenceIds).size !== evidenceIds.length ||
+      (decision.record.status === 'approved' && evidenceIds.length === 0)) {
     return {ok: false, errorCode: 'invalid-argument'};
   }
 
@@ -35,6 +37,20 @@ async function recordPartnerReview({db, decision, evidenceIds, now}) {
           !profile.exists || profile.get('role') !== 'driver') {
         const err = new Error('not_authorized');
         err.code = 'permission-denied';
+        throw err;
+      }
+      // Revalidate the complete decision against server-checked reviewer authority.
+      const checked = preparePartnerReviewDecision({
+        reviewerUid: decision.record.reviewedBy,
+        reviewerAuthorized: true,
+        partnerUid: decision.partnerUid,
+        status: decision.record.status,
+        reasonCode: decision.record.reasonCode,
+        now
+      });
+      if (!checked.ok) {
+        const err = new Error('invalid_review_decision');
+        err.code = 'invalid-argument';
         throw err;
       }
       // First decision only. Subsequent changes require a separately designed
