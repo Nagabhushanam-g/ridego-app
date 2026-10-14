@@ -24,7 +24,7 @@ function fakeDb({authorized = true, isPartner = true, fail = false, existingRevi
           if (fail) throw new Error('private database details');
           if (ref.name === 'partnerReviewEvidence') return {
             exists: true,
-            get: key => ({partnerUid: evidencePartnerUid, verified: evidenceVerified, revoked: false, source: 'digilocker', documentType: 'registration_certificate', issuer: 'trusted-service', sourceReference: 'ref-123', verifiedAtMs: now - 1000, expiresAtMs: now + 86400000})[key]
+            get: key => ({partnerUid: evidencePartnerUid, verified: evidenceVerified, revoked: false, source: 'digilocker', documentType: ref.id.startsWith('dl-') ? 'driving_licence' : 'registration_certificate', issuer: 'trusted-service', sourceReference: 'ref-123', verifiedAtMs: now - 1000, expiresAtMs: now + 86400000})[key]
           };
           if (ref.name === 'partnerVerifications') return {exists: existingReview};
           if (ref.name === 'partnerReviewers') {
@@ -55,7 +55,7 @@ test('writes verification and audit in the same transaction', async () => {
 
 test('unauthorized reviewer cannot write anything', async () => {
   const db = fakeDb({authorized: false});
-  assert.equal((await recordPartnerReview({db, decision, evidenceIds: ['rc-evidence'], now})).ok, false);
+  assert.equal((await recordPartnerReview({db, decision, evidenceIds: ['rc-evidence', 'dl-evidence'], now})).ok, false);
   assert.equal(db.writes.length, 0);
 });
 
@@ -111,4 +111,16 @@ test('rejects unverified and cross-partner evidence', async () => {
     assert.equal(result.ok, false);
     assert.equal(db.writes.length, 0);
   }
+});
+
+
+test('approval requires both verified RC and DL evidence types', async () => {
+  for (const ids of [['rc-1'], ['dl-1'], ['rc-1', 'rc-2'], ['dl-1', 'dl-2']]) {
+    const db = fakeDb();
+    const result = await recordPartnerReview({db, decision, evidenceIds: ids, now});
+    assert.equal(result.ok, false, ids.join(','));
+    assert.equal(db.writes.length, 0);
+  }
+  const db = fakeDb();
+  assert.deepEqual(await recordPartnerReview({db, decision, evidenceIds: ['rc-1', 'dl-1'], now}), {ok: true});
 });
