@@ -37,7 +37,14 @@ async function recordPartnerReview({db, decision, evidenceIds, now}) {
         err.code = 'permission-denied';
         throw err;
       }
-      // First decision only. Subsequent changes require a separately designed\n      // revision-aware review flow; transactions retry against concurrent writes.\n      if (previous.exists) {\n        const err = new Error('review_already_exists');\n        err.code = 'already-exists';\n        throw err;\n      }\n      const record = {
+      // First decision only. Subsequent changes require a separately designed
+      // revision-aware review flow; transactions retry against concurrent writes.
+      if (previous.exists) {
+        const err = new Error('review_already_exists');
+        err.code = 'already-exists';
+        throw err;
+      }
+      const record = {
         status: decision.record.status,
         reasonCode: decision.record.reasonCode,
         reviewedBy: decision.record.reviewedBy,
