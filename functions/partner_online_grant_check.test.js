@@ -12,7 +12,8 @@ const base = {
 };
 const fixtures = {
   partnerOnlineAuthorizations: {[partnerUid]: {
-    authorized: true, reviewRevision: 3, evidenceIds: ids
+    authorized: true, reviewRevision: 3, evidenceIds: ids,
+    expiresAtMs: now + 10000
   }},
   partnerVerifications: {[partnerUid]: {
     status: 'approved', reviewRevision: 3, evidenceIds: ids
@@ -69,4 +70,15 @@ test('database failures deny authorization', async () => {
   assert.deepEqual(await checkPartnerOnlineGrant({
     db: db(fixtures, true), partnerUid, now
   }), {allowed: false, reason: 'verification_unavailable'});
+});
+
+
+test('grant expiry boundary and stale grant expiry fail closed', async () => {
+  for (const expiry of [now - 1, now, now + 20000, null]) {
+    const data = structuredClone(fixtures);
+    data.partnerOnlineAuthorizations[partnerUid].expiresAtMs = expiry;
+    assert.equal((await checkPartnerOnlineGrant({
+      db: db(data), partnerUid, now
+    })).allowed, false);
+  }
 });
