@@ -48,6 +48,7 @@ test('atomic online authorization requires valid RC and DL', async () => {
   const authorization = await db.collection('partnerOnlineAuthorizations').doc(partnerUid).get();
   assert.equal(authorization.get('authorized'), true);
   assert.equal(authorization.get('reviewRevision'), 2);
+  assert.equal(authorization.get('expiresAtMs'), now + 86400000);
 });
 
 test('missing approval cannot create online authorization', async () => {
@@ -56,5 +57,28 @@ test('missing approval cannot create online authorization', async () => {
     db, partnerUid, now: Date.now(), enforcementEnabled: true
   });
   assert.equal(result.ok, false);
+  assert.equal((await db.collection('partnerOnlineAuthorizations').doc(partnerUid).get()).exists, false);
+});
+
+
+test('invalid review revision cannot create online authorization', async () => {
+  const suffix = Date.now().toString(36) + '-badrevision';
+  const partnerUid = 'partner-' + suffix;
+  const now = Date.now();
+  const ids = ['rc-' + suffix, 'dl-' + suffix];
+  await db.collection('profiles').doc(partnerUid).set({role: 'driver'});
+  await db.collection('partnerVerifications').doc(partnerUid).set({
+    status: 'approved', evidenceIds: ids, reviewRevision: -1
+  });
+  for (const [i, documentType] of ['registration_certificate', 'driving_licence'].entries()) {
+    await db.collection('partnerReviewEvidence').doc(ids[i]).set({
+      partnerUid, documentType, verified: true, revoked: false,
+      source: 'digilocker', issuer: 'trusted-service', sourceReference: 'ref-123',
+      verifiedAtMs: now - 1000, expiresAtMs: now + 10000
+    });
+  }
+  assert.deepEqual(await authorizePartnerOnlineTransaction({
+    db, partnerUid, now, enforcementEnabled: true
+  }), {ok: false, reason: 'invalid_review_revision'});
   assert.equal((await db.collection('partnerOnlineAuthorizations').doc(partnerUid).get()).exists, false);
 });
