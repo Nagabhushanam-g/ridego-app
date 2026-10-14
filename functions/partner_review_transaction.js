@@ -39,6 +39,20 @@ async function recordPartnerReview({db, decision, evidenceIds, now}) {
         err.code = 'permission-denied';
         throw err;
       }
+      // Evidence IDs are server-owned attestations, not client-supplied file paths.
+      // Read each attestation inside the transaction to bind it to this Partner.
+      if (decision.record.status === 'approved') {
+        for (const evidenceId of evidenceIds) {
+          const evidence = await tx.get(db.collection('partnerReviewEvidence').doc(evidenceId));
+          if (!evidence.exists || evidence.get('partnerUid') !== decision.partnerUid ||
+              evidence.get('verified') !== true ||
+              evidence.get('revoked') === true) {
+            const err = new Error('evidence_not_verified');
+            err.code = 'failed-precondition';
+            throw err;
+          }
+        }
+      }
       // Revalidate the complete decision against server-checked reviewer authority.
       const checked = preparePartnerReviewDecision({
         reviewerUid: decision.record.reviewedBy,
