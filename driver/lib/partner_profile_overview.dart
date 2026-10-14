@@ -211,7 +211,7 @@ class _PartnerProfileOverviewState extends State<PartnerProfileOverview> {
                   label: const Text('VIEW TRIP HISTORY'),
                 ),
                 const Text('Cash settlement and payouts are not yet available.'),
-              ], expanded: true),
+              ]),
               group('Documents', Icons.description_outlined, [
                 section('Documents', Icons.description_outlined, [
                   const PartnerDocumentsSection(),
