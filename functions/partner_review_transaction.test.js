@@ -82,3 +82,17 @@ test('existing verification cannot be silently overwritten', async () => {
   assert.equal(result.ok, false);
   assert.equal(db.writes.length, 0);
 });
+
+test('approval requires evidence reference and rejects forged reason', async () => {
+  for (const change of [
+    {evidenceIds: []},
+    {decision: {...decision, record: {...decision.record, reasonCode: 'manual_review'}}}
+  ]) {
+    const db = fakeDb();
+    const result = await recordPartnerReview({
+      db, decision, evidenceIds: ['rc-evidence'], now, ...change
+    });
+    assert.equal(result.ok, false);
+    assert.equal(db.writes.length, 0);
+  }
+});
