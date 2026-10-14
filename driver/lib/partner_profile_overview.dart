@@ -210,7 +210,26 @@ class PartnerProfileOverview extends StatelessWidget {
                     stream: db.collection('partnerVerifications').doc(user.uid).snapshots(),
                     builder: (context, reviewSnapshot) {
                       if (reviewSnapshot.hasError) {
-                        return const Text('Unable to load verification status. Approval is not confirmed.');
+                        final error = reviewSnapshot.error;
+                        final code = error is FirebaseException ? error.code : '';
+                        final message = switch (code) {
+                          'permission-denied' =>
+                            'Verification status access denied. Please check the published Firestore rules for firestore-db-2.',
+                          'unavailable' =>
+                            'Verification status temporarily unavailable. Check your connection and try again.',
+                          'unauthenticated' =>
+                            'Please sign in again to view verification status.',
+                          _ =>
+                            'Unable to load verification status. Please try again later.',
+                        };
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(message),
+                            const SizedBox(height: 6),
+                            const Text('Partner approval is not confirmed.'),
+                          ],
+                        );
                       }
                       if (!reviewSnapshot.hasData) {
                         return const LinearProgressIndicator();
