@@ -35,20 +35,26 @@ async function authorizePartnerOnlineTransaction({db, partnerUid, now = Date.now
       const docs = await Promise.all(ids.map(id =>
         tx.get(db.collection('partnerReviewEvidence').doc(id))));
       const types = new Set();
+      let expiresAtMs = Number.MAX_SAFE_INTEGER;
       for (const doc of docs) {
         if (!validatePartnerEvidence(doc, {partnerUid, now})) {
           return {ok: false, reason: 'evidence_invalid'};
         }
         types.add(doc.get('documentType'));
+        expiresAtMs = Math.min(expiresAtMs, doc.get('expiresAtMs'));
       }
       if (!types.has('registration_certificate') || !types.has('driving_licence')) {
         return {ok: false, reason: 'documents_incomplete'};
+      }
+      const reviewRevision = verification.get('reviewRevision');
+      if (!Number.isSafeInteger(reviewRevision) || reviewRevision < 0) {
+        return {ok: false, reason: 'invalid_review_revision'};
       }
       // A separate server-owned authorization record, not the live driver's
       // presence flag. All reads complete before this write.
       tx.set(onlineRef, {
         authorized: true, authorizedAtMs: now,
-        reviewRevision: verification.get('reviewRevision') ?? 0,
+        reviewRevision, expiresAtMs,
         evidenceIds: ids
       });
       return {ok: true, reason: 'verified_documents'};
