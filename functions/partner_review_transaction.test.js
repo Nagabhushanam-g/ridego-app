@@ -42,7 +42,8 @@ test('writes verification and audit in the same transaction', async () => {
   const db = fakeDb();
   assert.deepEqual(await recordPartnerReview({db, decision, evidenceIds: ['rc-1', 'dl-1'], now}), {ok: true});
   assert.equal(db.writes.length, 2);
-  assert.equal(db.writes[0].ref.name, 'partnerVerifications');\n  assert.equal(db.writes[0].type, 'create');
+  assert.equal(db.writes[0].ref.name, 'partnerVerifications');
+  assert.equal(db.writes[0].type, 'create');
   assert.equal(db.writes[1].ref.name, 'partnerReviewAudit');
   assert.equal(db.writes[0].value.status, 'approved');
   assert.deepEqual(db.writes[0].value.evidenceIds, ['rc-1', 'dl-1']);
