@@ -9,8 +9,15 @@ import 'partner_documents_section.dart';
 
 /// Profile overview. Verification and payout are intentionally read-only
 /// until their protected backend workflows are implemented.
-class PartnerProfileOverview extends StatelessWidget {
+class PartnerProfileOverview extends StatefulWidget {
   const PartnerProfileOverview({super.key});
+
+  @override
+  State<PartnerProfileOverview> createState() => _PartnerProfileOverviewState();
+}
+
+class _PartnerProfileOverviewState extends State<PartnerProfileOverview> {
+  String? _expandedSection;
 
   @override
   Widget build(BuildContext context) {
@@ -82,11 +89,18 @@ class PartnerProfileOverview extends StatelessWidget {
                 ),
               );
 
-          Widget group(String title, IconData icon, List<Widget> children,
-              {bool expanded = false}) => Card(
+          Widget group(String title, IconData icon, List<Widget> children) {
+            final expanded = _expandedSection == title;
+            return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ExpansionTile(
+                  key: ValueKey('$title-$expanded'),
                   initiallyExpanded: expanded,
+                  onExpansionChanged: (isExpanded) {
+                    setState(() {
+                      _expandedSection = isExpanded ? title : null;
+                    });
+                  },
                   leading: Icon(icon),
                   title: Text(title),
                   childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
@@ -94,6 +108,7 @@ class PartnerProfileOverview extends StatelessWidget {
                   children: children,
                 ),
               );
+          }
 
           return ListView(
             padding: const EdgeInsets.all(16),
