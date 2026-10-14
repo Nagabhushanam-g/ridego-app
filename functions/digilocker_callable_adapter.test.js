@@ -64,3 +64,16 @@ test('rejects invalid document type before writing', async () => {
   }), { ok: false, errorCode: 'invalid-argument' });
   assert.equal(db.sessionCount, 0);
 });
+
+
+test('unexpected Firestore failures never expose database errors or OAuth secrets', async () => {
+  const secret = 'access_token=secret-token; code=secret-code';
+  const db = {
+    collection() { throw new Error(secret); },
+  };
+  const result = await handlePartnerDigiLockerCallable({
+    db, request: { auth: { uid: 'partner-1' }, data: { documentType: 'dl' } },
+  });
+  assert.deepEqual(result, { ok: false, errorCode: 'internal' });
+  assert.equal(JSON.stringify(result).includes(secret), false);
+});
