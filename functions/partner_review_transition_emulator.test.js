@@ -71,3 +71,31 @@ test('unverified evidence cannot approve a pending Partner', async () => {
   assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).get('status'), 'pending');
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
 });
+
+test('rejection may omit evidence, but approval may not', async () => {
+  const suffix = Date.now().toString(36) + '-no-evidence';
+  const partnerUid = 'pending-partner-' + suffix;
+  const reviewerUid = 'reviewer-' + suffix;
+  await db.collection('profiles').doc(partnerUid).set({uid: partnerUid, role: 'driver'});
+  await db.collection('partnerVerifications').doc(partnerUid).set({status: 'pending'});
+  await db.collection('partnerReviewers').doc(reviewerUid).set({active: true, role: 'partner_reviewer'});
+  const now = Date.now();
+  const approved = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid,
+    status: 'approved', reasonCode: 'verification_complete', now
+  });
+  const rejected = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid,
+    status: 'rejected', reasonCode: 'documents_incomplete', now
+  });
+  assert.equal((await transitionPendingPartnerReview({
+    db, decision: approved, evidenceIds: [], now, expectedRevision: 0
+  })).ok, false);
+  assert.equal((await transitionPendingPartnerReview({
+    db, decision: rejected, evidenceIds: [], now, expectedRevision: 0
+  })).ok, true);
+  const result = await db.collection('partnerVerifications').doc(partnerUid).get();
+  assert.equal(result.get('status'), 'rejected');
+  assert.equal(result.get('reviewRevision'), 1);
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 1);
+});
