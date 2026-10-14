@@ -20,7 +20,7 @@ test('simultaneous pending review transitions commit only one decision and audit
     status: 'pending', reviewRevision: 0, existingField: 'preserved'
   });
   await db.collection('partnerReviewEvidence').doc(evidenceId).set({
-    partnerUid, verified: true, revoked: false
+    partnerUid, verified: true, revoked: false, source: 'digilocker', documentType: 'registration_certificate', issuer: 'trusted-service', sourceReference: 'ref-123', verifiedAtMs: Date.now() - 1000, expiresAtMs: Date.now() + 86400000
   });
   await Promise.all(reviewerUids.map(uid =>
     db.collection('partnerReviewers').doc(uid).set({active: true, role: 'partner_reviewer'})
