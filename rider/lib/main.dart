@@ -63,6 +63,7 @@ class _RiderHomeState extends State<RiderHome> {
   bool locationReady = false;
   bool searching = false;
   bool selectingPlace = false;
+  bool bookingRide = false;
   bool get rideActive => rideId != null;
   String? searchError;
   bool noInternet = false;
@@ -542,10 +543,13 @@ class _RiderHomeState extends State<RiderHome> {
       }
       return;
     }
-    if (destination == null || fare <= 0) return;
+    if (destination == null || fare <= 0 || bookingRide || rideActive) return;
 
+    setState(() {
+      bookingRide = true;
+      status = 'REQUESTING_RIDE';
+    });
     try {
-      setState(() => status = 'REQUESTING_RIDE');
       await ensureSignedIn();
       await rideSubscription?.cancel();
 
@@ -577,6 +581,8 @@ class _RiderHomeState extends State<RiderHome> {
       watchRide(ride.id);
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to request ride');
+    } finally {
+      if (mounted) setState(() => bookingRide = false);
     }
   }
 
@@ -866,8 +872,8 @@ class _RiderHomeState extends State<RiderHome> {
                       width: double.infinity,
                       height: 50,
                       child: FilledButton(
-                        onPressed: destination == null || rideActive || noInternet ? null : book,
-                        child: Text(rideActive ? 'RIDE IN PROGRESS' : 'BOOK RIDE'),
+                        onPressed: destination == null || rideActive || bookingRide || noInternet ? null : book,
+                        child: Text(rideActive ? 'RIDE IN PROGRESS' : bookingRide ? 'REQUESTING RIDE…' : 'BOOK RIDE'),
                       ),
                     ),
                     if (status == 'SEARCHING_DRIVER') ...[
