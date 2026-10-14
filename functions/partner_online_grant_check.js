@@ -19,6 +19,10 @@ async function checkPartnerOnlineGrant({db, partnerUid, now = Date.now()}) {
     if (!grant.exists || grant.get('authorized') !== true) {
       return {allowed: false, reason: 'authorization_required'};
     }
+    if (!Number.isSafeInteger(grant.get('expiresAtMs')) ||
+        grant.get('expiresAtMs') <= now) {
+      return {allowed: false, reason: 'authorization_expired'};
+    }
     if (!verification.exists || verification.get('status') !== 'approved') {
       return {allowed: false, reason: 'verification_required'};
     }
@@ -39,14 +43,19 @@ async function checkPartnerOnlineGrant({db, partnerUid, now = Date.now()}) {
     const docs = await Promise.all(ids.map(id =>
       db.collection('partnerReviewEvidence').doc(id).get()));
     const types = new Set();
+    let earliestExpiry = Number.MAX_SAFE_INTEGER;
     for (const doc of docs) {
       if (!validatePartnerEvidence(doc, {partnerUid, now})) {
         return {allowed: false, reason: 'evidence_invalid'};
       }
       types.add(doc.get('documentType'));
+      earliestExpiry = Math.min(earliestExpiry, doc.get('expiresAtMs'));
     }
     if (!types.has('registration_certificate') || !types.has('driving_licence')) {
       return {allowed: false, reason: 'documents_incomplete'};
+    }
+    if (grant.get('expiresAtMs') > earliestExpiry) {
+      return {allowed: false, reason: 'stale_authorization'};
     }
     return {allowed: true, reason: 'verified_documents'};
   } catch (_) {
