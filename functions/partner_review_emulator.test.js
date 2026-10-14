@@ -20,7 +20,7 @@ test('two simultaneous first reviews create only one verification and audit entr
   ));
   const evidenceId = 'rc-' + suffix;
   await db.collection('partnerReviewEvidence').doc(evidenceId).set({
-    partnerUid, verified: true, revoked: false
+    partnerUid, verified: true, revoked: false, source: 'digilocker', documentType: 'registration_certificate', issuer: 'trusted-service', sourceReference: 'ref-123', verifiedAtMs: Date.now() - 1000, expiresAtMs: Date.now() + 86400000
   });
   const now = Date.now();
   const decisions = reviewers.map((reviewerUid, i) =>
@@ -95,7 +95,7 @@ test('existing pending verification is not overwritten by initial-review helper'
   await db.collection('partnerVerifications').doc(partnerUid).set({status: 'pending'});
   const evidenceId = 'rc-' + suffix;
   await db.collection('partnerReviewEvidence').doc(evidenceId).set({
-    partnerUid, verified: true, revoked: false
+    partnerUid, verified: true, revoked: false, source: 'digilocker', documentType: 'registration_certificate', issuer: 'trusted-service', sourceReference: 'ref-123', verifiedAtMs: Date.now() - 1000, expiresAtMs: Date.now() + 86400000
   });
   const now = Date.now();
   const decision = preparePartnerReviewDecision({
