@@ -22,7 +22,7 @@ async function auditedPartnerDigiLockerSession({ request, db, now = Date.now(), 
     unauthenticated: 'unauthenticated',
     'invalid-argument': 'invalid_document_type',
     'permission-denied': 'not_partner',
-    'resource-exhausted': 'cooldown',
+    'resource-exhausted': 'rate_limited',
     internal: 'internal_error',
   };
   await emitAudit(audit, {
