@@ -205,6 +205,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Online authorization grants are backend-owned and must not be forged
+    // or read as an alternative to server-side eligibility checks.
+    match /partnerOnlineAuthorizations/{uid} {
+      allow read, write: if false;
+    }
+
     match /partnerReviewAudit/{auditId} {
       allow read, write: if false;
     }
