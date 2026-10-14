@@ -116,3 +116,17 @@ test('Clients cannot set DigiLocker verification approval on their own profile',
     await assertFails(updateDoc(ref(partner()), {[field]: true}));
   }
 });
+
+test('Partner and other clients cannot read or mutate review evidence, reviewer roster or audit', async () => {
+  const {getDoc, deleteDoc} = await import('firebase/firestore');
+  for (const collection of ['partnerReviewEvidence', 'partnerReviewers', 'partnerReviewAudit']) {
+    const id = collection === 'partnerReviewers' ? uid : 'review-test';
+    for (const db of [partner(), outsider()]) {
+      const target = doc(db, collection, id);
+      await assertFails(getDoc(target));
+      await assertFails(setDoc(target, {partnerUid: uid, verified: true, active: true}));
+      await assertFails(updateDoc(target, {verified: true}));
+      await assertFails(deleteDoc(target));
+    }
+  }
+});
