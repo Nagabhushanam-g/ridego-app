@@ -58,6 +58,7 @@ class _DriverHomeState extends State<DriverHome> {
   Map<String, dynamic>? pendingRide;
   bool noInternet = false;
   bool acceptingRide = false;
+  bool updatingTrip = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   @override
@@ -352,7 +353,7 @@ class _DriverHomeState extends State<DriverHome> {
       return;
     }
     final id = rideId;
-    if (id == null) return;
+    if (id == null || updatingTrip) return;
     final nextStatus = switch (status) {
       'DRIVER_ACCEPTED' => 'arrived',
       'DRIVER_ARRIVED' => 'started',
@@ -360,6 +361,7 @@ class _DriverHomeState extends State<DriverHome> {
       _ => null,
     };
     if (nextStatus == null) return;
+    setState(() => updatingTrip = true);
     try {
       await rideGoFirestore.collection('rideRequests').doc(id).update({
         'status': nextStatus,
@@ -388,7 +390,13 @@ class _DriverHomeState extends State<DriverHome> {
         }
       }
     } catch (_) {
-      if (mounted) setState(() => status = 'Unable to update ride');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to update ride. Please retry.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => updatingTrip = false);
     }
   }
 
@@ -541,9 +549,9 @@ class _DriverHomeState extends State<DriverHome> {
                         width: double.infinity,
                         height: 50,
                         child: FilledButton(
-                          onPressed: noInternet ? null : next,
+                          onPressed: noInternet || updatingTrip ? null : next,
                           child: Text(
-                            status == 'DRIVER_ACCEPTED'
+                            updatingTrip ? 'UPDATING TRIP…' : status == 'DRIVER_ACCEPTED'
                                 ? 'DRIVER ARRIVED'
                                 : status == 'DRIVER_ARRIVED'
                                     ? 'START TRIP'
