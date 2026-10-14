@@ -27,3 +27,11 @@ Scope: development branch only. This document does not activate approvals, DigiL
 
 ## Release blockers
 Reviewer authentication/authorization, admin UI, evidence retention, audit log policy, approval policy, backend ride gating and end-to-end tests remain unimplemented. DigiLocker requires separate official Requester approval. No Firebase deployment without explicit authorization.
+
+## Activation blockers confirmed by Emulator tests (October 2026)
+
+The inactive `recordPartnerReview` helper uses `tx.create` for `partnerVerifications/{partnerUid}`. This intentionally refuses to overwrite any existing record, **including a legitimate `pending` placeholder**. The real Partner approval workflow therefore cannot use this helper as-is for Partners who already have a verification document. Before activation, design a revision-aware transaction that preserves existing fields, validates the expected prior status/version, rechecks reviewer permissions and evidence, and atomically writes a separate immutable audit event. Test concurrent transitions in the Firestore Emulator.
+
+A `partnerReviewEvidence/{evidenceId}` document with `verified: true` is **not sufficient proof of government verification** unless the server-side attestation issuer and provenance are authenticated. The collection must be writable only by a narrowly authorized backend identity. Define and validate evidence type (RC versus driving licence), source, subject binding, issuer, verification timestamp, expiry/revocation, and required evidence completeness. Do not treat manually uploaded RC images or a supplied licence number as government-verified evidence. No DigiLocker activation or production approval endpoint is authorized by these preparation commits.
+
+Client rules explicitly deny access to reviewer, evidence and audit collections. Firebase Admin SDK bypasses these rules, so enforce IAM least privilege and issuer checks on server-side writes. Keep approval and ride gating inactive until these blockers are resolved and reviewed.
