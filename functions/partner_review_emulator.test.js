@@ -1,0 +1,58 @@
+'use strict';
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const {initializeApp, getApps} = require('firebase-admin/app');
+const {getFirestore} = require('firebase-admin/firestore');
+const {recordPartnerReview} = require('./partner_review_transaction');
+const {preparePartnerReviewDecision} = require('./partner_review_policy');
+
+if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Firestore Emulator required');
+if (!getApps().length) initializeApp({projectId: 'ridego-partner-review-test'});
+const db = getFirestore('firestore-db-2');
+
+test('two simultaneous first reviews create only one verification and audit entry', async () => {
+  const suffix = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  const partnerUid = 'partner-' + suffix;
+  const reviewers = ['reviewer-a-' + suffix, 'reviewer-b-' + suffix];
+  await db.collection('profiles').doc(partnerUid).set({uid: partnerUid, role: 'driver'});
+  await Promise.all(reviewers.map(uid =>
+    db.collection('partnerReviewers').doc(uid).set({active: true, role: 'partner_reviewer'})
+  ));
+  const now = Date.now();
+  const decisions = reviewers.map((reviewerUid, i) =>
+    preparePartnerReviewDecision({
+      reviewerUid, reviewerAuthorized: true, partnerUid,
+      status: i === 0 ? 'approved' : 'rejected',
+      reasonCode: i === 0 ? 'verification_complete' : 'document_mismatch',
+      now
+    })
+  );
+  const results = await Promise.all(decisions.map(decision =>
+    recordPartnerReview({db, decision, evidenceIds: ['rc-evidence'], now})
+  ));
+  assert.equal(results.filter(x => x.ok).length, 1);
+  const verification = await db.collection('partnerVerifications').doc(partnerUid).get();
+  assert.equal(verification.exists, true);
+  assert.ok(['approved', 'rejected'].includes(verification.get('status')));
+  const audit = await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get();
+  assert.equal(audit.size, 1);
+  assert.equal(audit.docs[0].get('status'), verification.get('status'));
+  assert.equal(audit.docs[0].get('reviewedBy'), verification.get('reviewedBy'));
+});
+
+test('inactive reviewer cannot create verification or audit', async () => {
+  const suffix = Date.now().toString(36) + '-inactive';
+  const partnerUid = 'partner-' + suffix;
+  const reviewerUid = 'reviewer-' + suffix;
+  await db.collection('profiles').doc(partnerUid).set({uid: partnerUid, role: 'driver'});
+  await db.collection('partnerReviewers').doc(reviewerUid).set({active: false, role: 'partner_reviewer'});
+  const now = Date.now();
+  const decision = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid,
+    status: 'approved', reasonCode: 'verification_complete', now
+  });
+  const result = await recordPartnerReview({db, decision, evidenceIds: [], now});
+  assert.equal(result.ok, false);
+  assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).exists, false);
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
+});
