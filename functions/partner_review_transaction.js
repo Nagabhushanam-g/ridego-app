@@ -4,6 +4,7 @@
 // Caller must provide a decision prepared by trusted reviewer authorization.
 // Evidence is represented only by server-validated opaque reference IDs.
 const {preparePartnerReviewDecision} = require('./partner_review_policy');
+const {validatePartnerEvidence} = require('./partner_review_evidence');
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 const STATUS = new Set(['pending', 'needs_review', 'approved', 'rejected']);
 
@@ -44,9 +45,7 @@ async function recordPartnerReview({db, decision, evidenceIds, now}) {
       if (decision.record.status === 'approved') {
         for (const evidenceId of evidenceIds) {
           const evidence = await tx.get(db.collection('partnerReviewEvidence').doc(evidenceId));
-          if (!evidence.exists || evidence.get('partnerUid') !== decision.partnerUid ||
-              evidence.get('verified') !== true ||
-              evidence.get('revoked') === true) {
+          if (!validatePartnerEvidence(evidence, {partnerUid: decision.partnerUid, now})) {
             const err = new Error('evidence_not_verified');
             err.code = 'failed-precondition';
             throw err;
