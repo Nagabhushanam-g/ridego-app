@@ -55,7 +55,7 @@ test('inactive reviewer cannot create verification or audit', async () => {
     reviewerUid, reviewerAuthorized: true, partnerUid,
     status: 'approved', reasonCode: 'verification_complete', now
   });
-  const result = await recordPartnerReview({db, decision, evidenceIds: [], now});
+  const result = await recordPartnerReview({db, decision, evidenceIds: ['missing-evidence'], now});
   assert.equal(result.ok, false);
   assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).exists, false);
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
