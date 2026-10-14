@@ -22,6 +22,13 @@ test('two simultaneous first reviews create only one verification and audit entr
   await db.collection('partnerReviewEvidence').doc(evidenceId).set({
     partnerUid, verified: true, revoked: false, source: 'digilocker', documentType: 'registration_certificate', issuer: 'trusted-service', sourceReference: 'ref-123', verifiedAtMs: Date.now() - 1000, expiresAtMs: Date.now() + 86400000
   });
+  const dlEvidenceId = 'dl-' + suffix;
+  await db.collection('partnerReviewEvidence').doc(dlEvidenceId).set({
+    partnerUid, verified: true, revoked: false, source: 'digilocker',
+    documentType: 'driving_licence', issuer: 'trusted-service',
+    sourceReference: 'ref-456', verifiedAtMs: Date.now() - 1000,
+    expiresAtMs: Date.now() + 86400000
+  });
   const now = Date.now();
   const decisions = reviewers.map((reviewerUid, i) =>
     preparePartnerReviewDecision({
@@ -32,7 +39,7 @@ test('two simultaneous first reviews create only one verification and audit entr
     })
   );
   const results = await Promise.all(decisions.map(decision =>
-    recordPartnerReview({db, decision, evidenceIds: [evidenceId], now})
+    recordPartnerReview({db, decision, evidenceIds: [evidenceId, dlEvidenceId], now})
   ));
   assert.equal(results.filter(x => x.ok).length, 1);
   const verification = await db.collection('partnerVerifications').doc(partnerUid).get();
@@ -105,5 +112,29 @@ test('existing pending verification is not overwritten by initial-review helper'
   const result = await recordPartnerReview({db, decision, evidenceIds: [evidenceId], now});
   assert.equal(result.ok, false);
   assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).get('status'), 'pending');
+  assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
+});
+
+
+test('verified RC alone cannot approve Partner in Firestore', async () => {
+  const suffix = Date.now().toString(36) + '-rc-only';
+  const partnerUid = 'partner-' + suffix;
+  const reviewerUid = 'reviewer-' + suffix;
+  const now = Date.now();
+  await db.collection('profiles').doc(partnerUid).set({role: 'driver'});
+  await db.collection('partnerReviewers').doc(reviewerUid).set({active: true, role: 'partner_reviewer'});
+  const evidenceId = 'rc-' + suffix;
+  await db.collection('partnerReviewEvidence').doc(evidenceId).set({
+    partnerUid, verified: true, revoked: false, source: 'digilocker',
+    documentType: 'registration_certificate', issuer: 'trusted-service',
+    sourceReference: 'ref-123', verifiedAtMs: now - 1000, expiresAtMs: now + 86400000
+  });
+  const decision = preparePartnerReviewDecision({
+    reviewerUid, reviewerAuthorized: true, partnerUid, status: 'approved',
+    reasonCode: 'verification_complete', now
+  });
+  const result = await recordPartnerReview({db, decision, evidenceIds: [evidenceId], now});
+  assert.equal(result.ok, false);
+  assert.equal((await db.collection('partnerVerifications').doc(partnerUid).get()).exists, false);
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
 });
