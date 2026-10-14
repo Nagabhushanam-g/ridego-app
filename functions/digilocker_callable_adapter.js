@@ -4,6 +4,7 @@
 // A future Firebase onCall endpoint may invoke this only after explicit approval.
 // No provider credentials, authorization URL or token exchange is present.
 const { preparePartnerDigiLockerSession } = require('./digilocker_partner_session');
+const { safeDigiLockerError } = require('./digilocker_safe_error');
 
 const REASONS = Object.freeze({
   unauthenticated: 'unauthenticated',
@@ -18,7 +19,13 @@ async function handlePartnerDigiLockerCallable({ request, db, now = Date.now() }
     return { ok: false, errorCode: 'invalid-argument' };
   }
   // Do not accept client-provided user IDs or timestamps. Only request.auth.uid.
-  const result = await preparePartnerDigiLockerSession({ request, db, now });
+  let result;
+  try {
+    result = await preparePartnerDigiLockerSession({ request, db, now });
+  } catch (_) {
+    // Do not expose Firestore/provider exception messages or request data.
+    return safeDigiLockerError(null);
+  }
   if (!result.ok) {
     return {
       ok: false,
