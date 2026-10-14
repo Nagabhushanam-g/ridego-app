@@ -10,7 +10,7 @@ async function transitionPendingPartnerReview({db, decision, evidenceIds, now, e
       !decision || decision.ok !== true || !decision.record ||
       !Number.isSafeInteger(now) || now < 0 ||
       !Number.isSafeInteger(expectedRevision) || expectedRevision < 0 ||
-      !Array.isArray(evidenceIds) || evidenceIds.length < 1 || evidenceIds.length > 10 ||
+      !Array.isArray(evidenceIds) || evidenceIds.length > 10 ||
       !evidenceIds.every(id => typeof id === 'string' && ID.test(id)) ||
       new Set(evidenceIds).size !== evidenceIds.length) {
     return {ok: false, errorCode: 'invalid-argument'};
@@ -21,7 +21,8 @@ async function transitionPendingPartnerReview({db, decision, evidenceIds, now, e
     reasonCode: decision.record.reasonCode, now
   });
   if (!policy.ok || decision.record.reviewedAtMs !== now ||
-      !['approved', 'rejected', 'needs_review'].includes(policy.record.status)) {
+      !['approved', 'rejected', 'needs_review'].includes(policy.record.status) ||
+      (policy.record.status === 'approved' && evidenceIds.length === 0)) {
     return {ok: false, errorCode: 'invalid-argument'};
   }
   const partnerUid = policy.partnerUid;
