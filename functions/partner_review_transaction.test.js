@@ -10,7 +10,7 @@ const decision = preparePartnerReviewDecision({
   reasonCode: 'verification_complete', now
 });
 
-function fakeDb({authorized = true, isPartner = true, fail = false} = {}) {
+function fakeDb({authorized = true, isPartner = true, fail = false, existingReview = false} = {}) {
   const writes = [];
   const db = {
     writes,
@@ -22,7 +22,7 @@ function fakeDb({authorized = true, isPartner = true, fail = false} = {}) {
       const tx = {
         async get(ref) {
           if (fail) throw new Error('private database details');
-          if (ref.name === 'partnerReviewers') {
+          if (ref.name === 'partnerVerifications') return {exists: existingReview};\n          if (ref.name === 'partnerReviewers') {
             return {exists: true, get: key => ({active: authorized, role: 'partner_reviewer'})[key]};
           }
           return {exists: true, get: key => ({role: isPartner ? 'driver' : 'rider'})[key]};
@@ -41,7 +41,7 @@ test('writes verification and audit in the same transaction', async () => {
   const db = fakeDb();
   assert.deepEqual(await recordPartnerReview({db, decision, evidenceIds: ['rc-1', 'dl-1'], now}), {ok: true});
   assert.equal(db.writes.length, 2);
-  assert.equal(db.writes[0].ref.name, 'partnerVerifications');
+  assert.equal(db.writes[0].ref.name, 'partnerVerifications');\n  assert.equal(db.writes[0].type, 'create');
   assert.equal(db.writes[1].ref.name, 'partnerReviewAudit');
   assert.equal(db.writes[0].value.status, 'approved');
   assert.deepEqual(db.writes[0].value.evidenceIds, ['rc-1', 'dl-1']);
@@ -72,4 +72,11 @@ test('rejects invalid evidence and malformed decision', async () => {
     assert.equal((await recordPartnerReview({db, decision, evidenceIds: [], now, ...change})).ok, false);
     assert.equal(db.writes.length, 0);
   }
+});
+
+test('existing verification cannot be silently overwritten', async () => {
+  const db = fakeDb({existingReview: true});
+  const result = await recordPartnerReview({db, decision, evidenceIds: [], now});
+  assert.equal(result.ok, false);
+  assert.equal(db.writes.length, 0);
 });
