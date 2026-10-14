@@ -45,3 +45,19 @@ app's button and restart recovery use the new server endpoint, older app
 versions have a supported upgrade path, and dispatch/presence rules have
 matching integration tests. Then replace these legacy-baseline expectations
 with tests that reject direct client `isOnline: true` writes.
+
+## Inactive atomic dispatch prototype
+
+`functions/partner_dispatch_transaction.js` is a preparation-only transaction
+that rechecks the requested ride, driver role, approved review revision,
+server authorization expiry, and current RC/DL evidence before updating the
+ride to `accepted`. It is **not exported or deployed**; existing client-side
+acceptance remains unchanged. Its Emulator tests cover inactive mode, revoked
+evidence, simultaneous acceptance attempts, and an expired grant.
+
+**Do not activate this prototype as-is.** It does not yet verify heartbeat-backed
+online presence, ensure the driver has no other active ride, validate all ride
+assignment policy fields, or migrate older client versions. A server-owned
+assignment endpoint and tested Firestore rules must replace the direct client
+acceptance path together. A real deployment also needs a review of trusted
+clock handling and transaction-time expiry boundaries.
