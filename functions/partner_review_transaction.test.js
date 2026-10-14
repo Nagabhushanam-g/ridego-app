@@ -22,7 +22,8 @@ function fakeDb({authorized = true, isPartner = true, fail = false, existingRevi
       const tx = {
         async get(ref) {
           if (fail) throw new Error('private database details');
-          if (ref.name === 'partnerVerifications') return {exists: existingReview};\n          if (ref.name === 'partnerReviewers') {
+          if (ref.name === 'partnerVerifications') return {exists: existingReview};
+          if (ref.name === 'partnerReviewers') {
             return {exists: true, get: key => ({active: authorized, role: 'partner_reviewer'})[key]};
           }
           return {exists: true, get: key => ({role: isPartner ? 'driver' : 'rider'})[key]};
