@@ -11,7 +11,7 @@ const EVENTS = new Set([
 ]);
 const REASONS = new Set([
   'unauthenticated', 'invalid_document_type', 'not_partner',
-  'cooldown', 'hourly_limit', 'invalid_callback',
+  'cooldown', 'hourly_limit', 'rate_limited', 'invalid_callback',
   'invalid_or_expired_session', 'internal_error',
 ]);
 
