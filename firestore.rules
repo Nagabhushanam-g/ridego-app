@@ -194,6 +194,21 @@ service cloud.firestore {
       allow list, create, update, delete: if false;
     }
 
+    // Evidence attestations and reviewer authorizations are server-only.
+    // Firebase Admin SDK bypasses client security rules; access must be enforced
+    // by trusted backend logic and IAM, never by client-written flags.
+    match /partnerReviewEvidence/{evidenceId} {
+      allow read, write: if false;
+    }
+
+    match /partnerReviewers/{reviewerUid} {
+      allow read, write: if false;
+    }
+
+    match /partnerReviewAudit/{auditId} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
