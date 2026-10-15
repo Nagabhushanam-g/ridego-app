@@ -260,6 +260,14 @@ class _DriverHomeState extends State<DriverHome> {
       }
       return;
     }
+    if (acceptingRide || updatingTrip) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Wait for the current ride action to finish.')),
+        );
+      }
+      return;
+    }
     if (online && hasAssignedRide) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -582,7 +590,7 @@ class _DriverHomeState extends State<DriverHome> {
                       width: double.infinity,
                       height: 50,
                       child: OutlinedButton(
-                        onPressed: noInternet ? null : toggle,
+                        onPressed: noInternet || acceptingRide || updatingTrip ? null : toggle,
                         child: Text(online ? 'GO OFFLINE' : 'GO ONLINE'),
                       ),
                     ),
