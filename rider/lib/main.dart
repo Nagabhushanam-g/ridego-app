@@ -577,6 +577,8 @@ class _RiderHomeState extends State<RiderHome> {
       }
       return;
     }
+    // Do not offer UPI without a verified payment collection backend.
+    if (!paymentSelectionCash) return;
     if (destination == null || fare <= 0 || bookingRide || rideActive) return;
 
     setState(() {
@@ -881,10 +883,14 @@ class _RiderHomeState extends State<RiderHome> {
                       SegmentedButton<bool>(
                         segments: const [
                           ButtonSegment(value: true, label: Text('Cash'), icon: Icon(Icons.payments_outlined)),
-                          ButtonSegment(value: false, label: Text('UPI'), icon: Icon(Icons.account_balance_wallet_outlined)),
+                          ButtonSegment(value: false, label: Text('UPI (soon)'), icon: Icon(Icons.account_balance_wallet_outlined), enabled: false),
                         ],
                         selected: {paymentSelectionCash},
                         onSelectionChanged: bookingRide ? null : (selection) => setState(() => paymentSelectionCash = selection.first),
+                      ),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('UPI payments coming soon. Cash only for now.', style: TextStyle(fontSize: 12)),
                       ),
                       const SizedBox(height: 10),
                     ],
