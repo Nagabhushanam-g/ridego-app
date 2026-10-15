@@ -57,6 +57,7 @@ class _RiderHomeState extends State<RiderHome> {
   LatLng? destination;
   String destinationAddress = '';
   String vehicle = 'Bike';
+  String driverVehicleNumber = '';
   String status = 'Choose your destination';
   int fare = 0;
   double distanceKm = 0;
@@ -429,6 +430,8 @@ class _RiderHomeState extends State<RiderHome> {
       rideId = id;
       status = riderUiStatus((data['status'] ?? 'requested').toString());
       vehicle = (data['vehicle'] ?? vehicle).toString();
+      driverVehicleNumber =
+          (data['driverVehicleNumber'] ?? '').toString().trim();
       fare = (data['fare'] as num?)?.toInt() ?? fare;
       distanceKm = (data['distanceKm'] as num?)?.toDouble() ?? distanceKm;
       destinationAddress =
@@ -498,6 +501,7 @@ class _RiderHomeState extends State<RiderHome> {
             fare = 0;
             distanceKm = 0;
             status = 'Choose your destination';
+            driverVehicleNumber = '';
             suggestions = [];
             searchError = null;
           });
@@ -858,6 +862,14 @@ class _RiderHomeState extends State<RiderHome> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(status),
+                              if (driverVehicleNumber.isNotEmpty &&
+                                  (status == 'DRIVER_ACCEPTED' ||
+                                      status == 'DRIVER_ARRIVED' ||
+                                      status == 'TRIP_STARTED'))
+                                Text(
+                                  'Vehicle number: $driverVehicleNumber',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
                               if (destinationAddress.isNotEmpty)
                                 Text(
                                   destinationAddress,
