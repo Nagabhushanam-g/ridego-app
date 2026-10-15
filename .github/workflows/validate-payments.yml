@@ -5,6 +5,7 @@ on:
     branches:
       - feature/payments-from-tested-build
     paths:
+      - 'scripts/release-preflight.cjs'
       - 'rider/**'
       - 'driver/**'
       - 'functions/**'
@@ -20,6 +21,17 @@ permissions:
   contents: read
 
 jobs:
+  release-preflight:
+    name: Check release configuration readiness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check static release configuration
+        run: node scripts/release-preflight.cjs
+
   flutter-analyze:
     name: Analyze ${{ matrix.app }}
     runs-on: ubuntu-latest
