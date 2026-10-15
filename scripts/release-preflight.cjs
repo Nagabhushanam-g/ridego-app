@@ -36,9 +36,8 @@ for (const name of [
 }
 check((workflow.match(/flutter build apk --release/g) || []).length >= 2,
   'APK workflow must build both Rider and Partner in release mode');
-check((workflow.match(/signingConfigs.getByName\\\\\\("release"\\\\\\)/g) || []).length === 0 ||
-  workflow.includes('signingConfigs.getByName("release")'),
-  'Check release signing injection in workflow');
+check(workflow.includes('signingConfigs.getByName("release")'),
+  'APK workflow must inject release signing into Gradle configuration');
 
 console.log('RideGo release preflight (static configuration only)');
 for (const message of warnings) console.log('WARNING: ' + message);
