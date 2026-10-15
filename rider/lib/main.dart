@@ -569,6 +569,14 @@ class _RiderHomeState extends State<RiderHome> {
       }
       return;
     }
+    if (!locationReady) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enable location and wait for your current pickup position.')),
+        );
+      }
+      return;
+    }
     if (destination == null || fare <= 0 || bookingRide || rideActive) return;
 
     setState(() {
@@ -934,7 +942,7 @@ class _RiderHomeState extends State<RiderHome> {
                       width: double.infinity,
                       height: 50,
                       child: FilledButton(
-                        onPressed: destination == null || rideActive || bookingRide || noInternet ? null : book,
+                        onPressed: destination == null || !locationReady || rideActive || bookingRide || noInternet ? null : book,
                         child: Text(rideActive ? 'RIDE IN PROGRESS' : bookingRide ? 'REQUESTING RIDE…' : 'BOOK RIDE'),
                       ),
                     ),
