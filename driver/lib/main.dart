@@ -363,11 +363,28 @@ class _DriverHomeState extends State<DriverHome> {
     if (nextStatus == null) return;
     setState(() => updatingTrip = true);
     try {
-      await rideGoFirestore.collection('rideRequests').doc(id).update({
-        'status': nextStatus,
-        if (nextStatus == 'arrived') 'arrivedAt': FieldValue.serverTimestamp(),
-        if (nextStatus == 'started') 'startedAt': FieldValue.serverTimestamp(),
-        if (nextStatus == 'completed') 'completedAt': FieldValue.serverTimestamp(),
+      final expectedStatus = switch (nextStatus) {
+        'arrived' => 'accepted',
+        'started' => 'arrived',
+        'completed' => 'started',
+        _ => null,
+      };
+      await rideGoFirestore.runTransaction((transaction) async {
+        final ref = rideGoFirestore.collection('rideRequests').doc(id);
+        final snapshot = await transaction.get(ref);
+        final data = snapshot.data();
+        if (!snapshot.exists ||
+            data == null ||
+            data['driverId'] != driverUid ||
+            data['status'] != expectedStatus) {
+          throw StateError('Trip state changed; refresh before retrying.');
+        }
+        transaction.update(ref, {
+          'status': nextStatus,
+          if (nextStatus == 'arrived') 'arrivedAt': FieldValue.serverTimestamp(),
+          if (nextStatus == 'started') 'startedAt': FieldValue.serverTimestamp(),
+          if (nextStatus == 'completed') 'completedAt': FieldValue.serverTimestamp(),
+        });
       });
       if (!mounted) return;
       setState(() {
