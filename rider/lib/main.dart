@@ -58,6 +58,8 @@ class _RiderHomeState extends State<RiderHome> {
   String destinationAddress = '';
   String vehicle = 'Bike';
   String driverVehicleNumber = '';
+  String bookedPaymentMethod = '';
+  String bookedPaymentStatus = '';
   String status = 'Choose your destination';
   int fare = 0;
   double distanceKm = 0;
@@ -433,6 +435,8 @@ class _RiderHomeState extends State<RiderHome> {
       vehicle = (data['vehicle'] ?? vehicle).toString();
       driverVehicleNumber =
           (data['driverVehicleNumber'] ?? '').toString().trim();
+      bookedPaymentMethod = (data['paymentMethod'] ?? '').toString();
+      bookedPaymentStatus = (data['paymentStatus'] ?? '').toString();
       fare = (data['fare'] as num?)?.toInt() ?? fare;
       distanceKm = (data['distanceKm'] as num?)?.toDouble() ?? distanceKm;
       destinationAddress =
@@ -503,6 +507,8 @@ class _RiderHomeState extends State<RiderHome> {
             distanceKm = 0;
             status = 'Choose your destination';
             driverVehicleNumber = '';
+            bookedPaymentMethod = '';
+            bookedPaymentStatus = '';
             suggestions = [];
             searchError = null;
           });
@@ -597,6 +603,8 @@ class _RiderHomeState extends State<RiderHome> {
       if (!mounted) return;
       setState(() {
         rideId = ride.id;
+        bookedPaymentMethod = paymentSelectionCash ? 'cash' : 'upi';
+        bookedPaymentStatus = 'pending';
         status = 'SEARCHING_DRIVER';
       });
 
@@ -880,6 +888,15 @@ class _RiderHomeState extends State<RiderHome> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(status),
+                              if (rideActive && bookedPaymentMethod.isNotEmpty)
+                                Text(
+                                  bookedPaymentMethod == 'cash'
+                                      ? 'Payment: Cash • not yet confirmed'
+                                      : bookedPaymentMethod == 'upi'
+                                          ? 'Payment: UPI • ${bookedPaymentStatus == 'paid' ? 'confirmed' : 'not yet confirmed'}'
+                                          : 'Payment: Not specified',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               if (driverVehicleNumber.isNotEmpty &&
                                   (status == 'DRIVER_ACCEPTED' ||
                                       status == 'DRIVER_ARRIVED' ||
