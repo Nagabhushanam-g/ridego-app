@@ -53,7 +53,9 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.riderId == request.auth.uid
         && request.resource.data.status == 'requested'
-        && request.resource.data.driverId == null;
+        && request.resource.data.driverId == null
+        && request.resource.data.paymentMethod in ['cash', 'upi']
+        && request.resource.data.paymentStatus == 'pending';
 
       allow get, list: if signedIn() && (
         resource.data.riderId == request.auth.uid
