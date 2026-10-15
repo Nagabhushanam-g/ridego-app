@@ -59,6 +59,7 @@ class _DriverHomeState extends State<DriverHome> {
   bool noInternet = false;
   bool acceptingRide = false;
   bool updatingTrip = false;
+  bool changingAvailability = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   @override
@@ -252,6 +253,7 @@ class _DriverHomeState extends State<DriverHome> {
           status == 'TRIP_STARTED');
 
   Future<void> toggle() async {
+    if (changingAvailability) return;
     if (noInternet) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -279,6 +281,8 @@ class _DriverHomeState extends State<DriverHome> {
       return;
     }
 
+    setState(() => changingAvailability = true);
+    try {
     if (!online) {
       await ensureSignedIn();
 
@@ -303,6 +307,15 @@ class _DriverHomeState extends State<DriverHome> {
         rideId = null;
         status = 'Offline';
       });
+    }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to change availability. Please retry.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => changingAvailability = false);
     }
   }
 
@@ -590,7 +603,7 @@ class _DriverHomeState extends State<DriverHome> {
                       width: double.infinity,
                       height: 50,
                       child: OutlinedButton(
-                        onPressed: noInternet || acceptingRide || updatingTrip ? null : toggle,
+                        onPressed: noInternet || acceptingRide || updatingTrip || changingAvailability ? null : toggle,
                         child: Text(online ? 'GO OFFLINE' : 'GO ONLINE'),
                       ),
                     ),
