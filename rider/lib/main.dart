@@ -64,6 +64,7 @@ class _RiderHomeState extends State<RiderHome> {
   bool searching = false;
   bool selectingPlace = false;
   bool bookingRide = false;
+  bool cancellingRide = false;
   bool get rideActive => rideId != null;
   String? searchError;
   bool noInternet = false;
@@ -516,12 +517,24 @@ class _RiderHomeState extends State<RiderHome> {
       return;
     }
     final id = rideId;
-    if (id == null || status != 'SEARCHING_DRIVER') return;
+    if (id == null || status != 'SEARCHING_DRIVER' || cancellingRide) return;
 
+    setState(() => cancellingRide = true);
     try {
-      await rideGoFirestore.collection('rideRequests').doc(id).update({
-        'status': 'cancelled',
-        'cancelledAt': FieldValue.serverTimestamp(),
+      await rideGoFirestore.runTransaction((transaction) async {
+        final ref = rideGoFirestore.collection('rideRequests').doc(id);
+        final snapshot = await transaction.get(ref);
+        final data = snapshot.data();
+        if (!snapshot.exists ||
+            data == null ||
+            data['riderId'] != riderUid ||
+            data['status'] != 'requested') {
+          throw StateError('Ride is no longer available for cancellation');
+        }
+        transaction.update(ref, {
+          'status': 'cancelled',
+          'cancelledAt': FieldValue.serverTimestamp(),
+        });
       });
     } catch (_) {
       if (mounted) {
@@ -531,6 +544,8 @@ class _RiderHomeState extends State<RiderHome> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => cancellingRide = false);
     }
   }
 
@@ -882,8 +897,8 @@ class _RiderHomeState extends State<RiderHome> {
                         width: double.infinity,
                         height: 46,
                         child: OutlinedButton(
-                          onPressed: noInternet ? null : cancelRide,
-                          child: const Text('CANCEL RIDE'),
+                          onPressed: noInternet || cancellingRide ? null : cancelRide,
+                          child: Text(cancellingRide ? 'CANCELLING…' : 'CANCEL RIDE'),
                         ),
                       ),
                     ],
