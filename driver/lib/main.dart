@@ -338,8 +338,8 @@ class _DriverHomeState extends State<DriverHome> {
           .get();
       final registration =
           (driverProfile.data()?['vehicleNumber'] ?? '').toString().trim();
-      if (registration.isEmpty) {
-        throw StateError('Complete your vehicle profile before accepting rides');
+      if (registration.length < 4 || registration.length > 24) {
+        throw StateError('Enter a valid vehicle number in your driver profile');
       }
       await rideGoFirestore.runTransaction((transaction) async {
         final ref = rideGoFirestore.collection('rideRequests').doc(id);
@@ -362,8 +362,11 @@ class _DriverHomeState extends State<DriverHome> {
         setState(() => status = 'DRIVER_ACCEPTED');
         watchAssignedRide(id);
       }
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error is StateError ? error.message.toString() : 'Unable to accept ride. Please retry.')),
+      );
       setState(() {
         pendingRide = null;
         rideId = null;
