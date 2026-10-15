@@ -332,6 +332,15 @@ class _DriverHomeState extends State<DriverHome> {
     if (id == null || driverUid == null || acceptingRide) return;
     setState(() => acceptingRide = true);
     try {
+      final driverProfile = await rideGoFirestore
+          .collection('profiles')
+          .doc(driverUid!)
+          .get();
+      final registration =
+          (driverProfile.data()?['vehicleNumber'] ?? '').toString().trim();
+      if (registration.isEmpty) {
+        throw StateError('Complete your vehicle profile before accepting rides');
+      }
       await rideGoFirestore.runTransaction((transaction) async {
         final ref = rideGoFirestore.collection('rideRequests').doc(id);
         final snapshot = await transaction.get(ref);
@@ -345,6 +354,7 @@ class _DriverHomeState extends State<DriverHome> {
         transaction.update(ref, {
           'status': 'accepted',
           'driverId': driverUid,
+          'driverVehicleNumber': registration,
           'acceptedAt': FieldValue.serverTimestamp(),
         });
       });
