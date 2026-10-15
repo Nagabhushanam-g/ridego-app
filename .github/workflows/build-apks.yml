@@ -48,7 +48,9 @@ jobs:
 
           flutter create --platforms=android .
           flutter pub get
-          flutter analyze --no-fatal-infos --no-fatal-warnings
+          # Flutter create generates an example test and lint include not declared
+          # in this app. Analyze maintained application code only.
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib
 
           printf '%s' "$FIREBASE_RIDER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
           test -s android/app/google-services.json
@@ -182,7 +184,9 @@ jobs:
 
           flutter create --platforms=android .
           flutter pub get
-          flutter analyze --no-fatal-infos --no-fatal-warnings
+          # Flutter create generates an example test and lint include not declared
+          # in this app. Analyze maintained application code only.
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib
 
           printf '%s' "$FIREBASE_DRIVER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
           test -s android/app/google-services.json
