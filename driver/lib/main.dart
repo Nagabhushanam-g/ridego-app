@@ -190,7 +190,8 @@ class _DriverHomeState extends State<DriverHome> {
         .limit(20)
         .snapshots()
         .listen((snapshot) {
-      if (!mounted || !online) return;
+      // Never replace an accepted assignment with another open request.
+      if (!mounted || !online || acceptingRide || hasAssignedRide) return;
       if (snapshot.docs.isEmpty) {
         if (rideId != null && status != 'Online — waiting for rides') {
           return;
