@@ -36,6 +36,11 @@ for (const name of [
 }
 check((workflow.match(/flutter build apk --release/g) || []).length >= 2,
   'APK workflow must build both Rider and Partner in release mode');
+check((workflow.match(/flutter build appbundle --release/g) || []).length >= 2,
+  'Release workflow must build Rider and Partner Android App Bundles');
+check(workflow.includes('ridego-rider-play-candidate-aab') &&
+  workflow.includes('ridego-partner-play-candidate-aab'),
+  'Release workflow must upload both Play Store candidate AAB artifacts');
 check(workflow.includes('signingConfigs.getByName("release")'),
   'APK workflow must inject release signing into Gradle configuration');
 
