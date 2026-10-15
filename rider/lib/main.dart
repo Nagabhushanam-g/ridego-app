@@ -65,6 +65,7 @@ class _RiderHomeState extends State<RiderHome> {
   bool searching = false;
   bool selectingPlace = false;
   bool bookingRide = false;
+  bool paymentSelectionCash = true;
   bool cancellingRide = false;
   bool get rideActive => rideId != null;
   String? searchError;
@@ -577,6 +578,8 @@ class _RiderHomeState extends State<RiderHome> {
         'status': 'requested',
         'vehicle': vehicle,
         'fare': fare,
+        'paymentMethod': paymentSelectionCash ? 'cash' : 'upi',
+        'paymentStatus': 'pending',
         'distanceKm': double.parse(distanceKm.toStringAsFixed(2)),
         'pickup': {
           'latitude': pickup.latitude,
@@ -854,6 +857,21 @@ class _RiderHomeState extends State<RiderHome> {
                             },
                     ),
                     const SizedBox(height: 10),
+                    if (!rideActive) ...[
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Payment method', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(value: true, label: Text('Cash'), icon: Icon(Icons.payments_outlined)),
+                          ButtonSegment(value: false, label: Text('UPI'), icon: Icon(Icons.account_balance_wallet_outlined)),
+                        ],
+                        selected: {paymentSelectionCash},
+                        onSelectionChanged: bookingRide ? null : (selection) => setState(() => paymentSelectionCash = selection.first),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
