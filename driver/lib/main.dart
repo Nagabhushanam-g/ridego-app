@@ -570,6 +570,18 @@ class _DriverHomeState extends State<DriverHome> {
                     const SizedBox(height: 8),
                     Text(status),
                     const SizedBox(height: 12),
+                    if (rideId != null &&
+                        pendingRide != null &&
+                        (status == 'DRIVER_ACCEPTED' ||
+                            status == 'DRIVER_ARRIVED' ||
+                            status == 'TRIP_STARTED'))
+                      Text(
+                        pendingRide!['paymentMethod'] == 'cash'
+                            ? 'Payment: Cash • collect only after trip'
+                            : pendingRide!['paymentMethod'] == 'upi'
+                                ? 'Payment: UPI • confirmation pending'
+                                : 'Payment method not recorded',
+                      ),
                     if (online &&
                         pendingRide != null &&
                         rideId != null &&
@@ -585,7 +597,12 @@ class _DriverHomeState extends State<DriverHome> {
                                 (pendingRide!['fare'] ?? 0).toString() +
                                 ' • ' +
                                 (pendingRide!['distanceKm'] ?? 0).toString() +
-                                ' km',
+                                ' km\nPayment: ' +
+                                (pendingRide!['paymentMethod'] == 'cash'
+                                    ? 'Cash'
+                                    : pendingRide!['paymentMethod'] == 'upi'
+                                        ? 'UPI (not yet paid)'
+                                        : 'Not specified'),
                           ),
                           trailing: FilledButton(
                             onPressed: noInternet || acceptingRide ? null : accept,
