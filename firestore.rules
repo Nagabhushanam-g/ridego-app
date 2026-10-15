@@ -90,7 +90,10 @@ service cloud.firestore {
           && resource.data.driverId == null
           && request.resource.data.status == 'accepted'
           && request.resource.data.driverId == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'driverId', 'acceptedAt'])
+          && request.resource.data.driverVehicleNumber is string
+          && request.resource.data.driverVehicleNumber.size() >= 4
+          && request.resource.data.driverVehicleNumber.size() <= 24
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'driverId', 'driverVehicleNumber', 'acceptedAt'])
         )
         ||
         (
