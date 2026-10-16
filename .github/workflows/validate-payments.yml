@@ -6,6 +6,8 @@ on:
       - feature/payments-from-tested-build
     paths:
       - 'scripts/release-preflight.cjs'
+      - 'scripts/verify-release-candidate.cjs'
+      - 'scripts/verify-release-candidate.test.cjs'
       - 'rider/**'
       - 'driver/**'
       - 'functions/**'
@@ -31,6 +33,8 @@ jobs:
           node-version: '22'
       - name: Check static release configuration
         run: node scripts/release-preflight.cjs
+      - name: Test offline release candidate checksum verification
+        run: node --test scripts/verify-release-candidate.test.cjs
 
   flutter-analyze:
     name: Analyze ${{ matrix.app }}
