@@ -187,3 +187,15 @@ test('Account deletion review queue is private to trusted server processes', asy
     await assertFails(deleteDoc(target));
   }
 });
+
+
+test('No client can forge or remove a server-owned Partner active ride lock', async () => {
+  const {getDoc, deleteDoc} = await import('firebase/firestore');
+  for (const db of [partner(), outsider()]) {
+    const target = doc(db, 'partnerActiveRideLocks', uid);
+    await assertFails(getDoc(target));
+    await assertFails(setDoc(target, {partnerUid: uid, rideId: 'fake-ride'}));
+    await assertFails(updateDoc(target, {rideId: 'fake-ride'}));
+    await assertFails(deleteDoc(target));
+  }
+});
