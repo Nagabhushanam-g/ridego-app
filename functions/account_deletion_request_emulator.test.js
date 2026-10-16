@@ -45,3 +45,41 @@ test('active driver or rider trip prevents queueing', async () => {
     assert.equal((await db.collection('accountDeletionRequests').doc(uid).get()).exists, false);
   }
 });
+
+
+test('all active ride states block deletion requests for their participants', async () => {
+  for (const [role, states] of [
+    ['riderId', ['requested', 'accepted', 'arrived', 'started']],
+    ['driverId', ['accepted', 'arrived', 'started']]
+  ]) {
+    for (const status of states) {
+      const uid = 'active-' + suffix();
+      await db.collection('rideRequests').doc('ride-' + suffix()).set({
+        [role]: uid, status
+      });
+      assert.deepEqual(await createAccountDeletionRequest(request(uid)),
+        {ok: false, reason: 'active_ride'}, role + ' ' + status);
+      assert.equal((await db.collection('accountDeletionRequests').doc(uid).get()).exists, false);
+    }
+  }
+});
+
+test('completed trips allow non-destructive deletion request queueing', async () => {
+  for (const role of ['riderId', 'driverId']) {
+    const uid = 'completed-' + suffix();
+    await db.collection('rideRequests').doc('ride-' + suffix()).set({
+      [role]: uid, status: 'completed'
+    });
+    const result = await createAccountDeletionRequest(request(uid));
+    assert.deepEqual(result, {ok: true, reason: 'request_created'});
+    const record = await db.collection('accountDeletionRequests').doc(uid).get();
+    assert.equal(record.get('status'), 'pending_review');
+  }
+});
+
+test('invalid reason cannot create deletion queue records', async () => {
+  const uid = 'invalid-' + suffix();
+  const result = await createAccountDeletionRequest({...request(uid), reason: 'delete_all'});
+  assert.deepEqual(result, {ok: false, reason: 'invalid_reason'});
+  assert.equal((await db.collection('accountDeletionRequests').doc(uid).get()).exists, false);
+});
