@@ -367,18 +367,17 @@ jobs:
             test -s "$apk"
             test -s "$aab"
             expected="$(keytool -list -v -keystore "$keystore" -storepass "$password" -alias "$alias" | awk '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-            test -n "$expected" || { echo "Missing expected signing fingerprint for $app"; exit 1; }
+            [[ "$expected" =~ ^[A-F0-9]{64}$ ]] || { echo "Invalid expected signing fingerprint for $app"; exit 1; }
             "$APK_SIGNER" verify --verbose --print-certs "$apk" > "/tmp/$app-apk-signing.txt"
-            actual="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest:[[:space:]]*([[:xdigit:]:[:space:]]+).*$/\1/p' "/tmp/$app-apk-signing.txt" | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
-            if [ -z "$actual" ]; then
+            actual="$(awk '/certificate SHA-256 digest:/ {sub(/^.*certificate SHA-256 digest:[[:space:]]*/, ""); gsub(/[:[:space:]\r]/, ""); print toupper($0); exit}' "/tmp/$app-apk-signing.txt")"
+            if [[ ! "$actual" =~ ^[A-F0-9]{64}$ ]]; then
               echo "::error::$app APK signer certificate digest could not be parsed."
-              grep -E "Signer #1 certificate SHA-256 digest:" "/tmp/$app-apk-signing.txt" || true
+              echo "Inspect apksigner output format and signing configuration; certificate details withheld."
               exit 1
             fi
             if [ "$actual" != "$expected" ]; then
               echo "::error::$app APK signing certificate differs from configured release keystore."
-              echo "$app expected SHA-256 certificate: $expected"
-              echo "$app actual APK SHA-256 certificate: $actual"
+              echo "Release keystore and APK signer fingerprints differ; values withheld."
               echo "Check Gradle release signing configuration and ensure the APK was rebuilt with the configured upload key."
               exit 1
             fi
