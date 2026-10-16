@@ -6,6 +6,8 @@ on:
       - feature/payments-from-tested-build
     paths:
       - 'scripts/release-preflight.cjs'
+      - 'scripts/play-publication-gate.cjs'
+      - 'scripts/play-publication-gate.test.cjs'
       - 'scripts/verify-release-candidate.cjs'
       - 'scripts/verify-release-candidate.test.cjs'
       - 'rider/**'
@@ -33,6 +35,10 @@ jobs:
           node-version: '22'
       - name: Check static release configuration
         run: node scripts/release-preflight.cjs
+      - name: Test Play publication policy gate
+        run: node --test scripts/play-publication-gate.test.cjs
+      - name: Report Play publication blockers without blocking development builds
+        run: node scripts/play-publication-gate.cjs
       - name: Test offline release candidate checksum verification
         run: node --test scripts/verify-release-candidate.test.cjs
 
