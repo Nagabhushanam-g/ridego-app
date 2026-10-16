@@ -41,6 +41,9 @@ check((workflow.match(/flutter build appbundle --release/g) || []).length >= 2,
 check(workflow.includes('ridego-rider-play-candidate-aab') &&
   workflow.includes('ridego-partner-play-candidate-aab'),
   'Release workflow must upload both Play Store candidate AAB artifacts');
+check(workflow.includes('Firebase Android package mismatch for rider') &&
+  workflow.includes('Firebase Android package mismatch for driver'),
+  'Release workflow must verify injected Firebase Android package identities');
 check(workflow.includes('signingConfigs.getByName("release")'),
   'APK workflow must inject release signing into Gradle configuration');
 
