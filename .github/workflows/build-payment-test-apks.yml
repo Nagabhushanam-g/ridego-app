@@ -369,7 +369,7 @@ jobs:
             expected="$(keytool -list -v -keystore "$keystore" -storepass "$password" -alias "$alias" | awk '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
             test -n "$expected" || { echo "Missing expected signing fingerprint for $app"; exit 1; }
             "$APK_SIGNER" verify --verbose --print-certs "$apk" > "/tmp/$app-apk-signing.txt"
-            actual="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest:[[:space:]]*([[:xdigit:]:[:space:]]+).*$/\\1/p' "/tmp/$app-apk-signing.txt" | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+            actual="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest:[[:space:]]*([[:xdigit:]:[:space:]]+).*$/\1/p' "/tmp/$app-apk-signing.txt" | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
             if [ -z "$actual" ]; then
               echo "::error::$app APK signer certificate digest could not be parsed."
               grep -E "Signer #1 certificate SHA-256 digest:" "/tmp/$app-apk-signing.txt" || true
