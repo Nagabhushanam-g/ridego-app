@@ -342,6 +342,45 @@ jobs:
           test -s rider/build/app/outputs/bundle/release/app-release.aab
           test -s driver/build/app/outputs/bundle/release/app-release.aab
 
+      - name: Verify APK and AAB signing certificates before upload
+        env:
+          RIDER_KEYSTORE_PASSWORD: ${{ secrets.RIDER_KEYSTORE_PASSWORD }}
+          RIDER_KEY_ALIAS: ${{ secrets.RIDER_KEY_ALIAS }}
+          DRIVER_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
+          DRIVER_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          APK_SIGNER="$(find "${ANDROID_HOME:-/opt/android-sdk}/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APK_SIGNER" || { echo "Android apksigner is unavailable"; exit 1; }
+          for app in rider driver; do
+            if [ "$app" = rider ]; then
+              alias="$RIDER_KEY_ALIAS"
+              password="$RIDER_KEYSTORE_PASSWORD"
+              keystore="rider/android/app/rider-release.jks"
+            else
+              alias="$DRIVER_KEY_ALIAS"
+              password="$DRIVER_KEYSTORE_PASSWORD"
+              keystore="driver/android/app/driver-release.jks"
+            fi
+            apk="$app/build/app/outputs/flutter-apk/app-release.apk"
+            aab="$app/build/app/outputs/bundle/release/app-release.aab"
+            test -s "$apk"
+            test -s "$aab"
+            expected="$(keytool -list -v -keystore "$keystore" -storepass "$password" -alias "$alias" | awk '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            test -n "$expected" || { echo "Missing expected signing fingerprint for $app"; exit 1; }
+            "$APK_SIGNER" verify --verbose --print-certs "$apk" > "/tmp/$app-apk-signing.txt"
+            actual="$(awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print $2; exit}' "/tmp/$app-apk-signing.txt" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            test "$actual" = "$expected" || { echo "$app APK signing certificate mismatch"; exit 1; }
+            jarsigner -verify -strict "$aab" > "/tmp/$app-aab-signing.txt" || {
+              echo "$app AAB signature verification failed"; exit 1;
+            }
+            # The bundle must be signed by the same configured upload key.
+            keytool -printcert -jarfile "$aab" > "/tmp/$app-aab-cert.txt"
+            bundle="$(awk '/SHA256:/{print $2; exit}' "/tmp/$app-aab-cert.txt" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            test "$bundle" = "$expected" || { echo "$app AAB signing certificate mismatch"; exit 1; }
+            echo "$app APK and AAB signature verified against configured release keystore."
+          done
+
       - name: Upload Rider Play Store candidate AAB
         uses: actions/upload-artifact@v4
         with:
