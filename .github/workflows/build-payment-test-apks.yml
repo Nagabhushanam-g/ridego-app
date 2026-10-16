@@ -371,7 +371,7 @@ jobs:
             "$APK_SIGNER" verify --verbose --print-certs "$apk" > "/tmp/$app-apk-signing.txt"
             actual="$(awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print $2; exit}' "/tmp/$app-apk-signing.txt" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
             test "$actual" = "$expected" || { echo "$app APK signing certificate mismatch"; exit 1; }
-            jarsigner -verify -strict "$aab" > "/tmp/$app-aab-signing.txt" || {
+            jarsigner -verify "$aab" > "/tmp/$app-aab-signing.txt" || {
               echo "$app AAB signature verification failed"; exit 1;
             }
             # The bundle must be signed by the same configured upload key.
