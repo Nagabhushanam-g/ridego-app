@@ -79,3 +79,19 @@ expiry margins, and a revocation/dispatch policy; do not claim perfect
 instantaneous revocation from this helper. A future integration must also
 validate the Partner profile, ensure that `now` is server-controlled, and
 include end-to-end Emulator tests for concurrent assignment and revocation.
+
+
+## Future dispatch single-active-ride lock (inactive)
+
+`functions/partner_dispatch_transaction.js` now transactionally creates a
+server-owned `partnerActiveRideLocks/{partnerUid}` record when accepting a ride.
+The lock and ride assignment share one Firestore transaction, so concurrent
+requests for *different* rides cannot assign the same Partner twice. Firestore
+rules explicitly deny all client access to lock records. Emulator tests cover
+concurrent assignment and attempted client forgery.
+
+**Do not activate this helper yet.** A matching authenticated, idempotent lock
+release/reconciliation operation for completed/cancelled rides, recovery of
+orphaned locks, and the existing ride lifecycle must be implemented and tested
+before production integration. Never let a client delete a lock or treat a
+stale lock as automatically expired while its ride may still be active.
