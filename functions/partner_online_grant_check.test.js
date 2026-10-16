@@ -82,3 +82,27 @@ test('grant expiry boundary and stale grant expiry fail closed', async () => {
     })).allowed, false);
   }
 });
+
+
+test('dispatch can check evidence through the same Firestore transaction', async () => {
+  const database = db(fixtures);
+  let transactionReads = 0;
+  const transaction = {
+    async get(ref) {
+      transactionReads++;
+      return ref.get();
+    }
+  };
+  assert.deepEqual(await checkPartnerOnlineGrant({
+    db: database, partnerUid, now, transaction
+  }), {allowed: true, reason: 'verified_documents'});
+  assert.equal(transactionReads, 4);
+});
+
+test('transactional eligibility check fails closed on read error', async () => {
+  const database = db(fixtures);
+  const transaction = {async get() {throw Error('transaction failed');}};
+  assert.deepEqual(await checkPartnerOnlineGrant({
+    db: database, partnerUid, now, transaction
+  }), {allowed: false, reason: 'verification_unavailable'});
+});
