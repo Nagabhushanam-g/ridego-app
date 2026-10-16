@@ -28,6 +28,13 @@ test('active ride and unknown ride state are not eligible', () => {
     authUid: 'partner-123', targetUid: 'partner-123',
     reason: 'other', activeRide: undefined
   }).reason, 'invalid_active_ride_state');
+  assert.equal(validate({
+    authUid: 'partner-123', targetUid: 'partner-123', reason: 'other'
+  }).reason, 'invalid_active_ride_state');
+  assert.equal(validate({
+    authUid: 'partner-123', targetUid: 'partner-123',
+    reason: 'other', activeRide: null
+  }).reason, 'invalid_active_ride_state');
 });
 
 test('unsupported reasons are rejected', () => {
