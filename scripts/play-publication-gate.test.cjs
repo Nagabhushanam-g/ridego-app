@@ -26,3 +26,23 @@ test('claims alone cannot override draft privacy policy', () => {
     ? '<h1>RideGo Privacy Policy</h1>' : read(name);
   assert.equal(assessPublication({read: approvedRead, evidence}).ready, true);
 });
+
+
+test('truthy strings and numeric values never count as verified publication evidence', () => {
+  const approvedRead = name => name === 'website/privacy.html'
+    ? '<h1>RideGo Privacy Policy</h1>' : read(name);
+  const keys = [
+    'publicDeletionUrlVerified', 'inAppDeletionTested', 'retentionPolicyApproved',
+    'twoDeviceAcceptancePassed', 'playSigningVerified', 'playDataSafetyReviewed',
+    'partnerPackageIdentityApproved'
+  ];
+  const allTrue = Object.fromEntries(keys.map(key => [key, true]));
+  for (const key of keys) {
+    for (const value of ['true', 'approved', 1, {}, []]) {
+      const evidence = {...allTrue, [key]: value};
+      const result = assessPublication({read: approvedRead, evidence});
+      assert.equal(result.ready, false, key + ' incorrectly accepted ' + String(value));
+      assert.ok(result.blockers.length > 0);
+    }
+  }
+});
