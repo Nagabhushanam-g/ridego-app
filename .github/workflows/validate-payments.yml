@@ -145,4 +145,4 @@ jobs:
       - name: Install Firebase dependencies and CLI
         run: npm --prefix functions install --no-audit --no-fund && npm install --no-save firebase-tools
       - name: Run simultaneous Partner reviews against emulator
-        run: npx firebase emulators:exec --only firestore --project ridego-partner-review-test "node --test functions/partner_review_emulator.test.js functions/partner_review_transition_emulator.test.js functions/partner_review_recheck_emulator.test.js functions/partner_online_transaction_emulator.test.js functions/partner_dispatch_transaction_emulator.test.js functions/account_deletion_request_emulator.test.js"
+        run: npx firebase emulators:exec --only firestore --project ridego-partner-review-test "node --test functions/partner_review_emulator.test.js functions/partner_review_transition_emulator.test.js functions/partner_review_recheck_emulator.test.js functions/partner_online_transaction_emulator.test.js functions/partner_dispatch_transaction_emulator.test.js functions/partner_active_ride_release_emulator.test.js functions/account_deletion_request_emulator.test.js"
