@@ -76,3 +76,47 @@ test('expired grant blocks a new requested ride', async () => {
   })).ok, false);
   assert.equal((await db.collection('rideRequests').doc(secondRideId).get()).get('status'), 'requested');
 });
+
+
+test('document expiry at exact dispatch time denies assignment', async () => {
+  const target = rideId + '-document-expiry';
+  await db.collection('rideRequests').doc(target).set({status: 'requested', driverId: null});
+  await db.collection('partnerOnlineAuthorizations').doc(partnerUid).update({
+    expiresAtMs: now + 60000
+  });
+  await db.collection('partnerReviewEvidence').doc(ids[1]).update({
+    expiresAtMs: now
+  });
+  const result = await authorizePartnerDispatchTransaction({
+    db, partnerUid, rideId: target, now, enforcementEnabled: true
+  });
+  assert.equal(result.ok, false);
+  assert.equal((await db.collection('rideRequests').doc(target).get()).get('status'), 'requested');
+  await db.collection('partnerReviewEvidence').doc(ids[1]).update({
+    expiresAtMs: now + 60000
+  });
+});
+
+test('review revision change prevents dispatch with an old authorization', async () => {
+  const target = rideId + '-stale-revision';
+  await db.collection('rideRequests').doc(target).set({status: 'requested', driverId: null});
+  await db.collection('partnerVerifications').doc(partnerUid).update({reviewRevision: 2});
+  const result = await authorizePartnerDispatchTransaction({
+    db, partnerUid, rideId: target, now, enforcementEnabled: true
+  });
+  assert.equal(result.ok, false);
+  assert.equal((await db.collection('rideRequests').doc(target).get()).get('status'), 'requested');
+  await db.collection('partnerVerifications').doc(partnerUid).update({reviewRevision: 1});
+});
+
+test('unapproved Partner cannot dispatch even with a previously valid grant', async () => {
+  const target = rideId + '-needs-review';
+  await db.collection('rideRequests').doc(target).set({status: 'requested', driverId: null});
+  await db.collection('partnerVerifications').doc(partnerUid).update({status: 'needs_review'});
+  const result = await authorizePartnerDispatchTransaction({
+    db, partnerUid, rideId: target, now, enforcementEnabled: true
+  });
+  assert.equal(result.ok, false);
+  assert.equal((await db.collection('rideRequests').doc(target).get()).get('status'), 'requested');
+  await db.collection('partnerVerifications').doc(partnerUid).update({status: 'approved'});
+});
