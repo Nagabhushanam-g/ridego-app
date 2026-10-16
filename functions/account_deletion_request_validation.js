@@ -5,7 +5,7 @@
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 const REASONS = new Set(['no_longer_needed', 'privacy', 'other']);
 
-function validateAccountDeletionRequest({authUid, targetUid, reason, activeRide = false}) {
+function validateAccountDeletionRequest({authUid, targetUid, reason, activeRide}) {
   if (typeof authUid !== 'string' || !ID.test(authUid)) {
     return {ok: false, reason: 'unauthenticated'};
   }
