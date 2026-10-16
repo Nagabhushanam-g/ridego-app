@@ -21,12 +21,19 @@ async function authorizePartnerDispatchTransaction({
       const profileRef = db.collection('profiles').doc(partnerUid);
       const verificationRef = db.collection('partnerVerifications').doc(partnerUid);
       const grantRef = db.collection('partnerOnlineAuthorizations').doc(partnerUid);
-      const [ride, profile, verification, grant] = await Promise.all([
-        tx.get(rideRef), tx.get(profileRef), tx.get(verificationRef), tx.get(grantRef)
+      const activeRideRef = db.collection('partnerActiveRideLocks').doc(partnerUid);
+      const [ride, profile, verification, grant, activeRide] = await Promise.all([
+        tx.get(rideRef), tx.get(profileRef), tx.get(verificationRef),
+        tx.get(grantRef), tx.get(activeRideRef)
       ]);
       if (!ride.exists || ride.get('status') !== 'requested' ||
           ride.get('driverId') != null) {
         return {ok: false, reason: 'ride_unavailable'};
+      }
+      // A separate lock prevents simultaneous acceptance of different rides.
+      // Future activation also requires an authenticated lifecycle release path.
+      if (activeRide.exists) {
+        return {ok: false, reason: 'partner_already_assigned'};
       }
       if (!profile.exists || profile.get('role') !== 'driver' ||
           !verification.exists || verification.get('status') !== 'approved') {
@@ -66,6 +73,7 @@ async function authorizePartnerDispatchTransaction({
       }
       // All validation reads and the assignment write share one transaction.
       // This does not yet check heartbeat presence or duplicate active rides.
+      tx.create(activeRideRef, {rideId, partnerUid, assignedAtMs: now});
       tx.update(rideRef, {
         status: 'accepted', driverId: partnerUid, acceptedAt: new Date(now)
       });
