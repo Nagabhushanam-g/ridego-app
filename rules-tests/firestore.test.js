@@ -170,3 +170,20 @@ test('Migration baseline: Partner cannot impersonate another uid in own user rec
     uid: 'someone-else', isOnline: true
   }, {merge: true}));
 });
+
+
+test('Account deletion review queue is private to trusted server processes', async () => {
+  const {getDoc, deleteDoc} = await import('firebase/firestore');
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(databaseId), 'accountDeletionRequests', uid), {
+      uid, reason: 'privacy', status: 'pending_review', requestedAtMs: 1700000000000
+    });
+  });
+  for (const db of [partner(), outsider()]) {
+    const target = doc(db, 'accountDeletionRequests', uid);
+    await assertFails(getDoc(target));
+    await assertFails(setDoc(target, {uid, status: 'approved'}));
+    await assertFails(updateDoc(target, {status: 'approved'}));
+    await assertFails(deleteDoc(target));
+  }
+});
