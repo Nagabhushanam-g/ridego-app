@@ -61,3 +61,21 @@ assignment policy fields, or migrate older client versions. A server-owned
 assignment endpoint and tested Firestore rules must replace the direct client
 acceptance path together. A real deployment also needs a review of trusted
 clock handling and transaction-time expiry boundaries.
+
+## Transactional dispatch integration seam (inactive)
+
+`checkPartnerOnlineGrant({db, partnerUid, now, transaction})` can now read the
+server-owned grant, review status, and supporting evidence using the caller's
+Firestore transaction. Future dispatch logic must read the ride request,
+Partner eligibility and any assignment prerequisites **before** writing the
+assignment, all in the **same** Firestore transaction. A separate read-only
+eligibility call followed by a later assignment remains vulnerable to changes
+between the two operations. This change does not alter existing dispatch code.
+
+**Important caveat:** Firestore transaction reads and writes alone do not
+protect against time passing beyond an expiry boundary between evaluation and
+commit. A production design must use a trusted server clock, conservative
+expiry margins, and a revocation/dispatch policy; do not claim perfect
+instantaneous revocation from this helper. A future integration must also
+validate the Partner profile, ensure that `now` is server-controlled, and
+include end-to-end Emulator tests for concurrent assignment and revocation.
