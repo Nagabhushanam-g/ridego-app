@@ -374,6 +374,31 @@ jobs:
             echo "$app APK and AAB signature verified against configured release keystore."
           done
 
+      # Record exactly which signed binaries belong to this commit and run.
+      - name: Generate release candidate provenance and SHA-256 checksums
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-candidate
+          printf 'source_commit=%s\nworkflow_run_id=%s\n' "$SOURCE_COMMIT" "$SOURCE_RUN_ID" > release-candidate/provenance.txt
+          sha256sum \
+            rider/build/app/outputs/flutter-apk/app-release.apk \
+            rider/build/app/outputs/bundle/release/app-release.aab \
+            driver/build/app/outputs/flutter-apk/app-release.apk \
+            driver/build/app/outputs/bundle/release/app-release.aab \
+            > release-candidate/SHA256SUMS
+          sha256sum --check release-candidate/SHA256SUMS
+          echo "Signed Rider and Partner APK/AAB checksums recorded (digests not logged)."
+
+      - name: Upload release candidate provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-release-candidate-provenance
+          path: release-candidate/
+          if-no-files-found: error
+
       # No APK/AAB artifact is published before both apps pass signing verification.
       - name: Upload Rider APK
         uses: actions/upload-artifact@v4
