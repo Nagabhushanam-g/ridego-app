@@ -207,6 +207,12 @@ service cloud.firestore {
 
     // Online authorization grants are backend-owned and must not be forged
     // or read as an alternative to server-side eligibility checks.
+    // Deletion requests contain private account and workflow information.
+    // Only trusted server processes may create, read or change them.
+    match /accountDeletionRequests/{uid} {
+      allow read, write: if false;
+    }
+
     match /partnerOnlineAuthorizations/{uid} {
       allow read, write: if false;
     }
