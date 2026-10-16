@@ -10,13 +10,13 @@ function assessPublication({read, evidence = {}}) {
   if (/Draft privacy information|not the final privacy notice/i.test(privacy)) {
     blockers.push('Public privacy policy remains a draft');
   }
-  if (!evidence.publicDeletionUrlVerified) blockers.push('Public account deletion URL unverified');
-  if (!evidence.inAppDeletionTested) blockers.push('In-app account deletion untested');
-  if (!evidence.retentionPolicyApproved) blockers.push('Data retention and deletion policy unapproved');
-  if (!evidence.twoDeviceAcceptancePassed) blockers.push('Two-device acceptance not signed off');
-  if (!evidence.playSigningVerified) blockers.push('Play App Signing and artifact certificates unverified');
-  if (!evidence.playDataSafetyReviewed) blockers.push('Play Data safety disclosures unreviewed');
-  if (!evidence.partnerPackageIdentityApproved &&
+  if (evidence.publicDeletionUrlVerified !== true) blockers.push('Public account deletion URL unverified');
+  if (evidence.inAppDeletionTested !== true) blockers.push('In-app account deletion untested');
+  if (evidence.retentionPolicyApproved !== true) blockers.push('Data retention and deletion policy unapproved');
+  if (evidence.twoDeviceAcceptancePassed !== true) blockers.push('Two-device acceptance not signed off');
+  if (evidence.playSigningVerified !== true) blockers.push('Play App Signing and artifact certificates unverified');
+  if (evidence.playDataSafetyReviewed !== true) blockers.push('Play Data safety disclosures unreviewed');
+  if (evidence.partnerPackageIdentityApproved !== true &&
       partner.includes('com.example.ridego_driver')) {
     blockers.push('Partner application ID not approved for first Play upload');
   }
