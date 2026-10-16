@@ -59,6 +59,19 @@ jobs:
 
           printf '%s' "$FIREBASE_RIDER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
           test -s android/app/google-services.json
+          # Fail before compilation if the injected Firebase Android client
+          # does not match this app's immutable Android application ID.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path("android/app/google-services.json").read_text())
+          expected = "com.ridego.rider"
+          clients = [entry.get("client_info", {}).get("android_client_info", {}).get("package_name")
+                     for entry in config.get("client", [])]
+          if expected not in clients:
+              raise SystemExit("Firebase Android package mismatch for rider; check the repository secret.")
+          print("Firebase Android package verified for rider (package name only).")
+          PY
 
           printf '%s' "$RIDER_KEYSTORE_BASE64" | base64 --decode > android/app/rider-release.jks
           test -s android/app/rider-release.jks
@@ -192,6 +205,19 @@ jobs:
 
           printf '%s' "$FIREBASE_DRIVER_GOOGLE_SERVICES_JSON" > android/app/google-services.json
           test -s android/app/google-services.json
+          # Fail before compilation if the injected Firebase Android client
+          # does not match this app's immutable Android application ID.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path("android/app/google-services.json").read_text())
+          expected = "com.example.ridego_driver"
+          clients = [entry.get("client_info", {}).get("android_client_info", {}).get("package_name")
+                     for entry in config.get("client", [])]
+          if expected not in clients:
+              raise SystemExit("Firebase Android package mismatch for driver; check the repository secret.")
+          print("Firebase Android package verified for driver (package name only).")
+          PY
 
           printf '%s' "$DRIVER_KEYSTORE_BASE64" | base64 --decode > android/app/driver-release.jks
           test -s android/app/driver-release.jks
