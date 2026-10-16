@@ -44,6 +44,10 @@ check(workflow.includes('ridego-rider-play-candidate-aab') &&
 check(workflow.includes('Firebase Android package mismatch for rider') &&
   workflow.includes('Firebase Android package mismatch for driver'),
   'Release workflow must verify injected Firebase Android package identities');
+check(workflow.includes('ridego-release-candidate-provenance') &&
+  workflow.includes('sha256sum --check release-candidate/SHA256SUMS') &&
+  workflow.includes('SOURCE_COMMIT:') && workflow.includes('SOURCE_RUN_ID:'),
+  'Release workflow must attach verifiable APK/AAB checksums and source provenance');
 check(workflow.includes('signingConfigs.getByName("release")'),
   'APK workflow must inject release signing into Gradle configuration');
 
