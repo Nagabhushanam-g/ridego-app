@@ -30,3 +30,21 @@ Do not advertise account deletion as functional before the backend workflow and 
 - **Partner package ID:** owner decision still required before first upload.
 - **Two-device final acceptance:** pending.
 - **Production deployment / Play Console upload:** not authorized.
+
+
+## Request queue lifecycle and retention guardrails
+
+The preparation-only request handler creates `accountDeletionRequests/{authUid}`
+with `pending_review`; it does **not** delete Auth, Firestore, Storage, ride
+history, payment receipts, or documents. It blocks requests during active
+rides, and a completed ride can be queued for later review. A completed ride
+may still have unsettled payment or legally required records, so queueing is
+**not approval for deletion**. Before implementing the processor, an owner
+must approve a retention matrix and specify how outstanding cash/UPI,
+commission, dispute, tax and fraud records are handled. The processor must
+recheck active trips and unsettled obligations at execution time, not rely
+solely on conditions when the request was queued.
+
+The expanded Emulator suite covers Rider and Partner active ride states,
+completed rides, invalid reasons, cross-account denial and idempotent retries.
+No endpoint is deployed and no public deletion workflow is claimed.
