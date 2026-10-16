@@ -320,23 +320,6 @@ jobs:
         run: ./gradlew signingReport
 
       # -------------------- ARTIFACTS --------------------
-      - name: Upload Rider APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ridego-payment-test-rider-apk
-          path: rider/build/app/outputs/flutter-apk/*.apk
-          if-no-files-found: error
-
-      - name: Verify Partner APK exists before upload
-        run: test -s driver/build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload Driver APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ridego-payment-test-partner-apk
-          path: driver/build/app/outputs/flutter-apk/*.apk
-          if-no-files-found: error
-
       - name: Verify Play Store AAB files
         run: |
           test -s rider/build/app/outputs/bundle/release/app-release.aab
@@ -390,6 +373,24 @@ jobs:
             test "$bundle" = "$expected" || { echo "$app AAB signing certificate mismatch"; exit 1; }
             echo "$app APK and AAB signature verified against configured release keystore."
           done
+
+      # No APK/AAB artifact is published before both apps pass signing verification.
+      - name: Upload Rider APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-payment-test-rider-apk
+          path: rider/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+
+      - name: Verify Partner APK exists before upload
+        run: test -s driver/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload Driver APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridego-payment-test-partner-apk
+          path: driver/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
 
       - name: Upload Rider Play Store candidate AAB
         uses: actions/upload-artifact@v4
