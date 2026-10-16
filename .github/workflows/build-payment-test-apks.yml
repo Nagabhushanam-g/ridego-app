@@ -369,7 +369,7 @@ jobs:
             expected="$(keytool -list -v -keystore "$keystore" -storepass "$password" -alias "$alias" | awk '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
             test -n "$expected" || { echo "Missing expected signing fingerprint for $app"; exit 1; }
             "$APK_SIGNER" verify --verbose --print-certs "$apk" > "/tmp/$app-apk-signing.txt"
-            actual="$(awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print $2; exit}' "/tmp/$app-apk-signing.txt" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            actual="$(awk '/Signer #1 certificate SHA-256 digest:/ {sub(/^.*Signer #1 certificate SHA-256 digest:[[:space:]]*/, ""); gsub(/[:[:space:]\r]/, ""); print toupper($0); exit}' "/tmp/$app-apk-signing.txt")"
             if [ -z "$actual" ]; then
               echo "::error::$app APK signer certificate digest could not be parsed."
               grep -E "Signer #1 certificate SHA-256 digest:" "/tmp/$app-apk-signing.txt" || true
@@ -387,7 +387,7 @@ jobs:
             }
             # The bundle must be signed by the same configured upload key.
             keytool -printcert -jarfile "$aab" > "/tmp/$app-aab-cert.txt"
-            bundle="$(awk '/SHA256:/{print $2; exit}' "/tmp/$app-aab-cert.txt" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            bundle="$(awk '/SHA256:/ {sub(/^.*SHA256:[[:space:]]*/, ""); gsub(/[:[:space:]\r]/, ""); print toupper($0); exit}' "/tmp/$app-aab-cert.txt")"
             test "$bundle" = "$expected" || { echo "$app AAB signing certificate mismatch"; exit 1; }
             echo "$app APK and AAB signature verified against configured release keystore."
           done
