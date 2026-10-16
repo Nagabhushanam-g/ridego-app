@@ -5,16 +5,17 @@
 const {validatePartnerEvidence} = require('./partner_review_evidence');
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 
-async function checkPartnerOnlineGrant({db, partnerUid, now = Date.now()}) {
+async function checkPartnerOnlineGrant({db, partnerUid, now = Date.now(), transaction = null}) {
   if (!db || typeof db.collection !== 'function' ||
       typeof partnerUid !== 'string' || !ID.test(partnerUid) ||
       !Number.isSafeInteger(now) || now < 0) {
     return {allowed: false, reason: 'invalid_argument'};
   }
   try {
+    const read = ref => transaction ? transaction.get(ref) : ref.get();
     const [grant, verification] = await Promise.all([
-      db.collection('partnerOnlineAuthorizations').doc(partnerUid).get(),
-      db.collection('partnerVerifications').doc(partnerUid).get()
+      read(db.collection('partnerOnlineAuthorizations').doc(partnerUid)),
+      read(db.collection('partnerVerifications').doc(partnerUid))
     ]);
     if (!grant.exists || grant.get('authorized') !== true) {
       return {allowed: false, reason: 'authorization_required'};
@@ -41,7 +42,7 @@ async function checkPartnerOnlineGrant({db, partnerUid, now = Date.now()}) {
       return {allowed: false, reason: 'stale_authorization'};
     }
     const docs = await Promise.all(ids.map(id =>
-      db.collection('partnerReviewEvidence').doc(id).get()));
+      read(db.collection('partnerReviewEvidence').doc(id))));
     const types = new Set();
     let earliestExpiry = Number.MAX_SAFE_INTEGER;
     for (const doc of docs) {
@@ -63,4 +64,7 @@ async function checkPartnerOnlineGrant({db, partnerUid, now = Date.now()}) {
   }
 }
 
+// A future dispatch transaction can supply its transaction object to ensure
+// authorization and dispatch reads share a consistent Firestore transaction.
+// The caller must perform the protected write in that SAME transaction.
 module.exports = {checkPartnerOnlineGrant};
