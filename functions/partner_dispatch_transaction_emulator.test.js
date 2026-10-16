@@ -120,3 +120,40 @@ test('unapproved Partner cannot dispatch even with a previously valid grant', as
   assert.equal((await db.collection('rideRequests').doc(target).get()).get('status'), 'requested');
   await db.collection('partnerVerifications').doc(partnerUid).update({status: 'approved'});
 });
+
+
+test('two different rides cannot be assigned to the same Partner concurrently', async () => {
+  const partner = 'partner-' + Date.now().toString(36) + '-parallel';
+  const documents = ['rc-' + partner, 'dl-' + partner];
+  const rideIds = ['first-' + partner, 'second-' + partner];
+  await db.collection('profiles').doc(partner).set({role: 'driver'});
+  await db.collection('partnerVerifications').doc(partner).set({
+    status: 'approved', reviewRevision: 1, evidenceIds: documents
+  });
+  await db.collection('partnerOnlineAuthorizations').doc(partner).set({
+    authorized: true, reviewRevision: 1, evidenceIds: documents,
+    expiresAtMs: now + 60000
+  });
+  for (const [i, documentType] of ['registration_certificate', 'driving_licence'].entries()) {
+    await db.collection('partnerReviewEvidence').doc(documents[i]).set({
+      partnerUid: partner, documentType, verified: true, revoked: false,
+      source: 'digilocker', issuer: 'trusted-service', sourceReference: 'ref-123',
+      verifiedAtMs: now - 1000, expiresAtMs: now + 60000
+    });
+  }
+  for (const id of rideIds) {
+    await db.collection('rideRequests').doc(id).set({
+      status: 'requested', driverId: null, riderId: 'rider-test'
+    });
+  }
+  const results = await Promise.all(rideIds.map(id =>
+    authorizePartnerDispatchTransaction({
+      db, partnerUid: partner, rideId: id, now, enforcementEnabled: true
+    })));
+  assert.equal(results.filter(x => x.ok).length, 1);
+  const rides = await Promise.all(rideIds.map(id => db.collection('rideRequests').doc(id).get()));
+  assert.equal(rides.filter(x => x.get('status') === 'accepted').length, 1);
+  const lock = await db.collection('partnerActiveRideLocks').doc(partner).get();
+  assert.equal(lock.exists, true);
+  assert.equal(lock.get('rideId'), rides.find(x => x.get('status') === 'accepted').id);
+});
