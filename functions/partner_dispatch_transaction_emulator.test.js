@@ -157,3 +157,25 @@ test('two different rides cannot be assigned to the same Partner concurrently', 
   assert.equal(lock.exists, true);
   assert.equal(lock.get('rideId'), rides.find(x => x.get('status') === 'accepted').id);
 });
+
+
+test('prepared dispatch denies self-rides and missing rider identity', async () => {
+  const cases = [
+    {riderId: partnerUid, expected: 'invalid_ride_owner'},
+    {riderId: '', expected: 'invalid_ride_owner'},
+    {riderId: 'invalid/rider', expected: 'invalid_ride_owner'},
+    {expected: 'invalid_ride_owner'}
+  ];
+  for (const [index, {expected, ...rideData}] of cases.entries()) {
+    const target = rideId + '-owner-' + index;
+    await db.collection('rideRequests').doc(target).set({
+      status: 'requested', driverId: null, ...rideData
+    });
+    const result = await authorizePartnerDispatchTransaction({
+      db, partnerUid, rideId: target, now, enforcementEnabled: true
+    });
+    assert.deepEqual(result, {ok: false, reason: expected});
+    assert.equal((await db.collection('rideRequests').doc(target).get()).get('status'), 'requested');
+    assert.equal((await db.collection('partnerActiveRideLocks').doc(partnerUid).get()).exists, true);
+  }
+});
