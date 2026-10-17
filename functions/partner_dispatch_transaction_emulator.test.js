@@ -171,11 +171,14 @@ test('prepared dispatch denies self-rides and missing rider identity', async () 
     await db.collection('rideRequests').doc(target).set({
       status: 'requested', driverId: null, ...rideData
     });
+    const lockBefore = await db.collection('partnerActiveRideLocks').doc(partnerUid).get();
     const result = await authorizePartnerDispatchTransaction({
       db, partnerUid, rideId: target, now, enforcementEnabled: true
     });
     assert.deepEqual(result, {ok: false, reason: expected});
     assert.equal((await db.collection('rideRequests').doc(target).get()).get('status'), 'requested');
-    assert.equal((await db.collection('partnerActiveRideLocks').doc(partnerUid).get()).get('rideId'), rideId);
+    const lockAfter = await db.collection('partnerActiveRideLocks').doc(partnerUid).get();
+    assert.equal(lockAfter.exists, lockBefore.exists);
+    assert.deepEqual(lockAfter.data(), lockBefore.data());
   }
 });
