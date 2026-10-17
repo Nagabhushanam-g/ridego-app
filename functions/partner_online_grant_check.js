@@ -13,10 +13,14 @@ async function checkPartnerOnlineGrant({db, partnerUid, now = Date.now(), transa
   }
   try {
     const read = ref => transaction ? transaction.get(ref) : ref.get();
-    const [grant, verification] = await Promise.all([
+    const [profile, grant, verification] = await Promise.all([
+      read(db.collection('profiles').doc(partnerUid)),
       read(db.collection('partnerOnlineAuthorizations').doc(partnerUid)),
       read(db.collection('partnerVerifications').doc(partnerUid))
     ]);
+    if (!profile.exists || profile.get('role') !== 'driver') {
+      return {allowed: false, reason: 'driver_profile_required'};
+    }
     if (!grant.exists || grant.get('authorized') !== true) {
       return {allowed: false, reason: 'authorization_required'};
     }
