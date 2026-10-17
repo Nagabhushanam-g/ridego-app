@@ -95,3 +95,12 @@ release/reconciliation operation for completed/cancelled rides, recovery of
 orphaned locks, and the existing ride lifecycle must be implemented and tested
 before production integration. Never let a client delete a lock or treat a
 stale lock as automatically expired while its ride may still be active.
+
+## Current driver-role revalidation (inactive)
+
+The read-only `checkPartnerOnlineGrant` helper now reads `profiles/{partnerUid}`
+through the same optional Firestore transaction as the grant, verification,
+and RC/DL evidence. It denies a missing profile or a profile whose role is no
+longer `driver`, even when an old grant remains authorized. Unit tests cover
+role removal and transaction-read count. This is defense in depth, not a
+replacement for server-side presence, authentication or dispatch enforcement.
