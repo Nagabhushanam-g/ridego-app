@@ -199,3 +199,26 @@ test('No client can forge or remove a server-owned Partner active ride lock', as
     await assertFails(deleteDoc(target));
   }
 });
+
+
+test('Account deletion queue is private and server-owned for Rider and Partner', async () => {
+  const {getDoc, deleteDoc} = await import('firebase/firestore');
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(databaseId), 'accountDeletionRequests', uid), {
+      uid, status: 'pending_review', reason: 'privacy', requestedAtMs: Date.now()
+    });
+  });
+  for (const db of [partner(), outsider()]) {
+    const target = doc(db, 'accountDeletionRequests', uid);
+    await assertFails(getDoc(target));
+    await assertFails(setDoc(target, {uid, status: 'approved'}));
+    await assertFails(updateDoc(target, {status: 'approved'}));
+    await assertFails(deleteDoc(target));
+  }
+  const riderUid = 'rider-deletion-rules-test';
+  const riderDb = env.authenticatedContext(riderUid).firestore(databaseId);
+  await assertFails(setDoc(doc(riderDb, 'accountDeletionRequests', riderUid), {
+    uid: riderUid, status: 'pending_review'
+  }));
+  await assertFails(getDoc(doc(riderDb, 'accountDeletionRequests', uid)));
+});
