@@ -100,3 +100,24 @@ test('valid evidence recheck preserves existing online authorization', async () 
   assert.equal((await db.collection('partnerOnlineAuthorizations').doc(partnerUid).get()).get('authorized'), true);
   assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 0);
 });
+
+
+test('malformed evidence references revoke approved Partner and online grant', async () => {
+  for (const [index, evidenceIds] of [null, [], ['bad/id'], ['same', 'same']].entries()) {
+    const partnerUid = 'malformed-' + Date.now().toString(36) + '-' + index;
+    const now = Date.now();
+    await db.collection('partnerVerifications').doc(partnerUid).set({
+      status: 'approved', reviewRevision: 3, evidenceIds
+    });
+    await db.collection('partnerOnlineAuthorizations').doc(partnerUid).set({
+      authorized: true, reviewRevision: 3, evidenceIds: []
+    });
+    assert.deepEqual(await recheckApprovedPartnerEvidence({db, partnerUid, now}),
+      {ok: true, status: 'needs_review'});
+    const verification = await db.collection('partnerVerifications').doc(partnerUid).get();
+    assert.equal(verification.get('status'), 'needs_review');
+    assert.equal(verification.get('reviewRevision'), 4);
+    assert.equal((await db.collection('partnerOnlineAuthorizations').doc(partnerUid).get()).get('authorized'), false);
+    assert.equal((await db.collection('partnerReviewAudit').where('partnerUid', '==', partnerUid).get()).size, 1);
+  }
+});
