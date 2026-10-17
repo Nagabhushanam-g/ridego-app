@@ -325,6 +325,26 @@ jobs:
           test -s rider/build/app/outputs/bundle/release/app-release.aab
           test -s driver/build/app/outputs/bundle/release/app-release.aab
 
+      - name: Verify built APK application identities
+        run: |
+          set -euo pipefail
+          AAPT="$(find "${ANDROID_HOME:-/opt/android-sdk}/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$AAPT" || { echo "::error::Android aapt is unavailable"; exit 1; }
+          for app in rider driver; do
+            case "$app" in
+              rider) expected="com.ridego.rider" ;;
+              driver) expected="com.example.ridego_driver" ;;
+            esac
+            apk="$app/build/app/outputs/flutter-apk/app-release.apk"
+            test -s "$apk"
+            actual="$("$AAPT" dump badging "$apk" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
+            if [ "$actual" != "$expected" ]; then
+              echo "::error::$app APK package mismatch: expected $expected; received ${actual:-missing}"
+              exit 1
+            fi
+            echo "$app built APK application ID verified: $expected"
+          done
+
       - name: Verify APK and AAB signing certificates before upload
         env:
           RIDER_KEYSTORE_PASSWORD: ${{ secrets.RIDER_KEYSTORE_PASSWORD }}
