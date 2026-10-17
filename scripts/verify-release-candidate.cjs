@@ -17,7 +17,11 @@ try {
   const provenance = read('release-candidate/provenance.txt');
   const commit = /^source_commit=([a-f0-9]{40})$/m.exec(provenance)?.[1];
   const run = /^workflow_run_id=([1-9][0-9]*)$/m.exec(provenance)?.[1];
-  if (!commit || !run) throw Error('Invalid source commit or workflow run provenance');
+  if (!commit || !run ||
+      (provenance.match(/^source_commit=/gm) || []).length !== 1 ||
+      (provenance.match(/^workflow_run_id=/gm) || []).length !== 1) {
+    throw Error('Invalid or duplicate source commit / workflow run provenance');
+  }
   const expected = new Set([
     'rider/build/app/outputs/flutter-apk/app-release.apk',
     'rider/build/app/outputs/bundle/release/app-release.aab',
@@ -34,6 +38,16 @@ try {
     seen.add(match[2]);
     const file = path.resolve(root, match[2]);
     if (!file.startsWith(root + path.sep)) throw Error('Unsafe artifact path');
+    // Reject symlinks, including symlinked parent directories, to ensure the
+    // checked bytes belong to the extracted artifact tree.
+    let segment = root;
+    for (const part of match[2].split('/')) {
+      segment = path.join(segment, part);
+      if (fs.lstatSync(segment).isSymbolicLink()) {
+        throw Error('Symlinked release artifact path: ' + match[2]);
+      }
+    }
+    if (!fs.statSync(file).isFile()) throw Error('Not a regular artifact file');
     const actual = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
     if (actual !== match[1]) throw Error('SHA-256 mismatch: ' + match[2]);
     console.log('Verified: ' + match[2]);
