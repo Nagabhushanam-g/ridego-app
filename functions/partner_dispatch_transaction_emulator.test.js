@@ -176,6 +176,6 @@ test('prepared dispatch denies self-rides and missing rider identity', async () 
     });
     assert.deepEqual(result, {ok: false, reason: expected});
     assert.equal((await db.collection('rideRequests').doc(target).get()).get('status'), 'requested');
-    assert.equal((await db.collection('partnerActiveRideLocks').doc(partnerUid).get()).exists, true);
+    assert.equal((await db.collection('partnerActiveRideLocks').doc(partnerUid).get()).get('rideId'), rideId);
   }
 });
