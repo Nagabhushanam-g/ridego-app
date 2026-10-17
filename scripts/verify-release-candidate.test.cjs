@@ -60,3 +60,29 @@ test('rejects duplicate or injected checksum paths', () => {
     assert.equal(verify(root).status, 1);
   } finally { fs.rmSync(root, {recursive: true, force: true}); }
 });
+
+
+test('rejects duplicate provenance keys even when first value is valid', () => {
+  const root = fixture();
+  try {
+    fs.appendFileSync(path.join(root, 'release-candidate/provenance.txt'),
+      'source_commit=' + 'b'.repeat(40) + '\n');
+    assert.equal(verify(root).status, 1);
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
+
+test('rejects symlinked release artifact even when checksum matches', () => {
+  const root = fixture();
+  try {
+    const target = path.join(root, files[0]);
+    const original = fs.readFileSync(target);
+    const external = fs.mkdtempSync(path.join(os.tmpdir(), 'ridego-outside-'));
+    try {
+      const externalFile = path.join(external, 'app-release.apk');
+      fs.writeFileSync(externalFile, original);
+      fs.unlinkSync(target);
+      fs.symlinkSync(externalFile, target);
+      assert.equal(verify(root).status, 1);
+    } finally { fs.rmSync(external, {recursive: true, force: true}); }
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
