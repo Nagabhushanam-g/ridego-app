@@ -182,3 +182,44 @@ test('prepared dispatch denies self-rides and missing rider identity', async () 
     assert.deepEqual(lockAfter.data(), lockBefore.data());
   }
 });
+
+
+test('two eligible Partners racing for one ride cannot both acquire it', async () => {
+  const suffix2 = Date.now().toString(36) + '-two-partners';
+  const target = 'ride-' + suffix2;
+  const drivers = ['first-' + suffix2, 'second-' + suffix2];
+  await db.collection('rideRequests').doc(target).set({
+    status: 'requested', driverId: null, riderId: 'rider-independent'
+  });
+  for (const driver of drivers) {
+    const evidenceIds = ['rc-' + driver, 'dl-' + driver];
+    await db.collection('profiles').doc(driver).set({role: 'driver'});
+    await db.collection('partnerVerifications').doc(driver).set({
+      status: 'approved', reviewRevision: 1, evidenceIds
+    });
+    await db.collection('partnerOnlineAuthorizations').doc(driver).set({
+      authorized: true, reviewRevision: 1, evidenceIds, expiresAtMs: now + 60000
+    });
+    for (const [i, documentType] of ['registration_certificate', 'driving_licence'].entries()) {
+      await db.collection('partnerReviewEvidence').doc(evidenceIds[i]).set({
+        partnerUid: driver, documentType, verified: true, revoked: false,
+        source: 'digilocker', issuer: 'trusted-service', sourceReference: 'ref-123',
+        verifiedAtMs: now - 1000, expiresAtMs: now + 60000
+      });
+    }
+  }
+  const outcomes = await Promise.all(drivers.map(partner =>
+    authorizePartnerDispatchTransaction({
+      db, partnerUid: partner, rideId: target, now, enforcementEnabled: true
+    })));
+  assert.equal(outcomes.filter(outcome => outcome.ok).length, 1);
+  const winner = drivers[outcomes.findIndex(outcome => outcome.ok)];
+  const ride = await db.collection('rideRequests').doc(target).get();
+  assert.equal(ride.get('driverId'), winner);
+  assert.equal(ride.get('status'), 'accepted');
+  for (const driver of drivers) {
+    const lock = await db.collection('partnerActiveRideLocks').doc(driver).get();
+    assert.equal(lock.exists, driver === winner);
+    if (lock.exists) assert.equal(lock.get('rideId'), target);
+  }
+});
