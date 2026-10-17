@@ -11,6 +11,7 @@ const base = {
   verifiedAtMs: now - 1000, expiresAtMs: now + 10000
 };
 const fixtures = {
+  profiles: {[partnerUid]: {role: 'driver'}},
   partnerOnlineAuthorizations: {[partnerUid]: {
     authorized: true, reviewRevision: 3, evidenceIds: ids,
     expiresAtMs: now + 10000
@@ -96,7 +97,7 @@ test('dispatch can check evidence through the same Firestore transaction', async
   assert.deepEqual(await checkPartnerOnlineGrant({
     db: database, partnerUid, now, transaction
   }), {allowed: true, reason: 'verified_documents'});
-  assert.equal(transactionReads, 4);
+  assert.equal(transactionReads, 5);
 });
 
 test('transactional eligibility check fails closed on read error', async () => {
@@ -105,4 +106,15 @@ test('transactional eligibility check fails closed on read error', async () => {
   assert.deepEqual(await checkPartnerOnlineGrant({
     db: database, partnerUid, now, transaction
   }), {allowed: false, reason: 'verification_unavailable'});
+});
+
+
+test('online grant denies removed or changed Partner driver role', async () => {
+  for (const role of ['rider', 'admin', null]) {
+    const data = structuredClone(fixtures);
+    if (role === null) delete data.profiles[partnerUid];
+    else data.profiles[partnerUid].role = role;
+    assert.deepEqual(await checkPartnerOnlineGrant({db: db(data), partnerUid, now}),
+      {allowed: false, reason: 'driver_profile_required'});
+  }
 });
