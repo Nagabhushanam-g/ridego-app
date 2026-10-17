@@ -217,6 +217,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Deletion requests contain privacy intent and are only created by a
+    // trusted authenticated backend; never expose the queue to clients.
+    match /accountDeletionRequests/{uid} {
+      allow read, write: if false;
+    }
+
     match /partnerOnlineAuthorizations/{uid} {
       allow read, write: if false;
     }
