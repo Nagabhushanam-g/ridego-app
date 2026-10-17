@@ -30,6 +30,12 @@ async function authorizePartnerDispatchTransaction({
           ride.get('driverId') != null) {
         return {ok: false, reason: 'ride_unavailable'};
       }
+      // Never dispatch an unowned/malformed ride or let a Partner accept their own ride.
+      const riderId = ride.get('riderId');
+      if (typeof riderId !== 'string' || !ID.test(riderId) ||
+          riderId === partnerUid) {
+        return {ok: false, reason: 'invalid_ride_owner'};
+      }
       // A separate lock prevents simultaneous acceptance of different rides.
       // Future activation also requires an authenticated lifecycle release path.
       if (activeRide.exists) {
