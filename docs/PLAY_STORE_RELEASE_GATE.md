@@ -31,3 +31,16 @@ A successful `Build RideGo Payment Test APKs` run is evidence of a **build**, no
 ## Decision required
 
 **Partner package name**: choose `com.example.ridego_driver` (least disruptive to current Firebase/testing) or a final brand namespace such as `com.ridego.partner` (cleaner store identity but requires coordinated Firebase, Maps, build and installation migration). No changes to application IDs or production services are authorized by this audit.
+
+## Automated publication evidence additions (October 2026)
+
+The non-deploying `scripts/play-publication-gate.cjs` now also requires explicit,
+boolean `true` sign-off for **cashPaymentDeviceAcceptancePassed**,
+**productionFirebaseConfigurationVerified** and **playAppAccessVerified**.
+These are separate from a successful APK build or Emulator run. Verify actual
+cash receipt and commission results on two devices, compare deployed Firebase
+rules/functions and the named `firestore-db-2` configuration with intended
+release behavior, and test Play reviewer access instructions before supplying
+any of these attestations. CI intentionally reports publication blockers
+without blocking development builds; do not interpret a green build as
+publication authorization.
