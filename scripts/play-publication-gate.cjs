@@ -14,6 +14,9 @@ function assessPublication({read, evidence = {}}) {
   if (evidence.inAppDeletionTested !== true) blockers.push('In-app account deletion untested');
   if (evidence.retentionPolicyApproved !== true) blockers.push('Data retention and deletion policy unapproved');
   if (evidence.twoDeviceAcceptancePassed !== true) blockers.push('Two-device acceptance not signed off');
+  if (evidence.cashPaymentDeviceAcceptancePassed !== true) blockers.push('Cash receipt and commission device acceptance unverified');
+  if (evidence.productionFirebaseConfigurationVerified !== true) blockers.push('Production Firebase rules, functions and database configuration unverified');
+  if (evidence.playAppAccessVerified !== true) blockers.push('Play reviewer app access instructions unverified');
   if (evidence.playSigningVerified !== true) blockers.push('Play App Signing and artifact certificates unverified');
   if (evidence.playDataSafetyReviewed !== true) blockers.push('Play Data safety disclosures unreviewed');
   if (evidence.partnerPackageIdentityApproved !== true &&
