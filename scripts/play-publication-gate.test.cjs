@@ -18,7 +18,9 @@ test('publication remains blocked without verified evidence', () => {
 test('claims alone cannot override draft privacy policy', () => {
   const evidence = Object.fromEntries([
     'publicDeletionUrlVerified', 'inAppDeletionTested', 'retentionPolicyApproved',
-    'twoDeviceAcceptancePassed', 'playSigningVerified', 'playDataSafetyReviewed',
+    'twoDeviceAcceptancePassed', 'cashPaymentDeviceAcceptancePassed',
+    'productionFirebaseConfigurationVerified', 'playAppAccessVerified',
+    'playSigningVerified', 'playDataSafetyReviewed',
     'partnerPackageIdentityApproved'
   ].map(key => [key, true]));
   assert.equal(assessPublication({read, evidence}).ready, false);
@@ -33,7 +35,9 @@ test('truthy strings and numeric values never count as verified publication evid
     ? '<h1>RideGo Privacy Policy</h1>' : read(name);
   const keys = [
     'publicDeletionUrlVerified', 'inAppDeletionTested', 'retentionPolicyApproved',
-    'twoDeviceAcceptancePassed', 'playSigningVerified', 'playDataSafetyReviewed',
+    'twoDeviceAcceptancePassed', 'cashPaymentDeviceAcceptancePassed',
+    'productionFirebaseConfigurationVerified', 'playAppAccessVerified',
+    'playSigningVerified', 'playDataSafetyReviewed',
     'partnerPackageIdentityApproved'
   ];
   const allTrue = Object.fromEntries(keys.map(key => [key, true]));
