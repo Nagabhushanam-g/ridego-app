@@ -86,3 +86,21 @@ test('rejects symlinked release artifact even when checksum matches', () => {
     } finally { fs.rmSync(external, {recursive: true, force: true}); }
   } finally { fs.rmSync(root, {recursive: true, force: true}); }
 });
+
+
+test('rejects an intact artifact bundle from a different expected commit', () => {
+  const root = fixture();
+  try {
+    const result = spawnSync(process.execPath, [verifier, root, 'b'.repeat(40)], {encoding: 'utf8'});
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /does not match requested release candidate/);
+    assert.equal(spawnSync(process.execPath, [verifier, root, 'a'.repeat(40)], {encoding: 'utf8'}).status, 0);
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
+
+test('rejects malformed expected commit', () => {
+  const root = fixture();
+  try {
+    assert.equal(spawnSync(process.execPath, [verifier, root, 'abc'], {encoding: 'utf8'}).status, 2);
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
