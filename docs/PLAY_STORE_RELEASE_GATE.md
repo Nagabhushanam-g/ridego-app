@@ -55,3 +55,19 @@ not automatic claims based on compilation. Check both apps' actual store
 screenshots, icons, descriptions, permissions, disclosure text, and a Play
 internal-track installation/login test using Play-distributed artifacts.
 A green CI run must never be interpreted as any of these approvals.
+
+
+## Release candidate identity verification
+
+After downloading and extracting the four CI artifacts and their provenance
+manifest into one directory, verify the exact commit intended for device tests:
+
+```sh
+node scripts/verify-release-candidate.cjs /path/to/extracted-artifact-root FULL_40_CHARACTER_COMMIT_SHA
+```
+
+This now fails if the manifest's source commit differs from the expected SHA,
+even if all four APK/AAB hashes match the manifest. It does **not** establish
+cryptographic authenticity of the manifest itself; use trusted GitHub Actions
+artifacts and independently verify Android signing certificates before Play
+submission. Do not confuse a passing verifier with Play Store approval.
