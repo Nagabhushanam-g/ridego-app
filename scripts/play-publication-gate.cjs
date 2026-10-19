@@ -22,12 +22,21 @@ function assessPublication({read, evidence = {}}) {
   if (evidence.storeListingAssetsApproved !== true) blockers.push('Rider and Partner Play Store listings and assets unapproved');
   if (evidence.androidPermissionsReviewed !== true) blockers.push('Android permission declarations unreviewed');
   if (evidence.playInternalTrackAcceptancePassed !== true) blockers.push('Play internal-track installation and login acceptance unverified');
-  if (evidence.partnerPackageIdentityApproved !== true &&
-      partner.includes('com.example.ridego_driver')) {
+  // Explicit approval is required even if the Partner namespace changes.
+  // A package rename must never silently bypass the first-upload decision.
+  if (evidence.partnerPackageIdentityApproved !== true) {
     blockers.push('Partner application ID not approved for first Play upload');
   }
-  if (!rider.includes('applicationId = "com.ridego.rider"')) {
-    blockers.push('Rider application ID unexpectedly changed');
+  const applicationIds = source => [...source.matchAll(/\\bapplicationId\\s*=\\s*"([^"]+)"/g)]
+    .map(match => match[1]);
+  const riderIds = applicationIds(rider);
+  const partnerIds = applicationIds(partner);
+  if (riderIds.length !== 1 || riderIds[0] !== 'com.ridego.rider') {
+    blockers.push('Rider application ID unexpectedly changed or is ambiguous');
+  }
+  if (partnerIds.length !== 1 ||
+      !['com.example.ridego_driver', 'com.ridego.partner'].includes(partnerIds[0])) {
+    blockers.push('Partner application ID unexpected or ambiguous; review Firebase and signing migration');
   }
   return {ready: blockers.length === 0, blockers};
 }
