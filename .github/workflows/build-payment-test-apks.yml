@@ -412,6 +412,15 @@ jobs:
           sha256sum --check release-candidate/SHA256SUMS
           echo "Signed Rider and Partner APK/AAB checksums recorded (digests not logged)."
 
+      # Independently re-read the generated manifest and verify all four binaries
+      # against the exact checked-out source commit before publishing artifacts.
+      - name: Verify release candidate manifest against source commit
+        env:
+          EXPECTED_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-release-candidate.cjs . "$EXPECTED_SOURCE_COMMIT"
+
       - name: Upload release candidate provenance
         uses: actions/upload-artifact@v4
         with:
