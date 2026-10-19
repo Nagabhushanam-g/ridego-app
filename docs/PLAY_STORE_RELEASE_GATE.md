@@ -44,3 +44,14 @@ release behavior, and test Play reviewer access instructions before supplying
 any of these attestations. CI intentionally reports publication blockers
 without blocking development builds; do not interpret a green build as
 publication authorization.
+
+
+## Additional publication sign-offs (October 2026)
+
+The non-deploying Play publication gate now also requires strict boolean `true`
+for `storeListingAssetsApproved`, `androidPermissionsReviewed` and
+`playInternalTrackAcceptancePassed`. These are owner-reviewed attestations,
+not automatic claims based on compilation. Check both apps' actual store
+screenshots, icons, descriptions, permissions, disclosure text, and a Play
+internal-track installation/login test using Play-distributed artifacts.
+A green CI run must never be interpreted as any of these approvals.
