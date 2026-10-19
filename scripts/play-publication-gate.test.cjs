@@ -21,7 +21,9 @@ test('claims alone cannot override draft privacy policy', () => {
     'twoDeviceAcceptancePassed', 'cashPaymentDeviceAcceptancePassed',
     'productionFirebaseConfigurationVerified', 'playAppAccessVerified',
     'playSigningVerified', 'playDataSafetyReviewed',
-    'partnerPackageIdentityApproved'
+    'partnerPackageIdentityApproved',
+    'storeListingAssetsApproved', 'androidPermissionsReviewed',
+    'playInternalTrackAcceptancePassed'
   ].map(key => [key, true]));
   assert.equal(assessPublication({read, evidence}).ready, false);
   const approvedRead = name => name === 'website/privacy.html'
@@ -38,7 +40,9 @@ test('truthy strings and numeric values never count as verified publication evid
     'twoDeviceAcceptancePassed', 'cashPaymentDeviceAcceptancePassed',
     'productionFirebaseConfigurationVerified', 'playAppAccessVerified',
     'playSigningVerified', 'playDataSafetyReviewed',
-    'partnerPackageIdentityApproved'
+    'partnerPackageIdentityApproved',
+    'storeListingAssetsApproved', 'androidPermissionsReviewed',
+    'playInternalTrackAcceptancePassed'
   ];
   const allTrue = Object.fromEntries(keys.map(key => [key, true]));
   for (const key of keys) {
@@ -48,5 +52,28 @@ test('truthy strings and numeric values never count as verified publication evid
       assert.equal(result.ready, false, key + ' incorrectly accepted ' + String(value));
       assert.ok(result.blockers.length > 0);
     }
+  }
+});
+
+
+test('publication requires separate Play listing, permissions and internal-track evidence', () => {
+  const approvedRead = name => name === 'website/privacy.html'
+    ? '<h1>RideGo Privacy Policy</h1>' : read(name);
+  const keys = [
+    'publicDeletionUrlVerified', 'inAppDeletionTested', 'retentionPolicyApproved',
+    'twoDeviceAcceptancePassed', 'cashPaymentDeviceAcceptancePassed',
+    'productionFirebaseConfigurationVerified', 'playAppAccessVerified',
+    'playSigningVerified', 'playDataSafetyReviewed',
+    'partnerPackageIdentityApproved', 'storeListingAssetsApproved',
+    'androidPermissionsReviewed', 'playInternalTrackAcceptancePassed'
+  ];
+  const allTrue = Object.fromEntries(keys.map(key => [key, true]));
+  assert.equal(assessPublication({read: approvedRead, evidence: allTrue}).ready, true);
+  for (const key of ['storeListingAssetsApproved', 'androidPermissionsReviewed',
+    'playInternalTrackAcceptancePassed']) {
+    const result = assessPublication({
+      read: approvedRead, evidence: {...allTrue, [key]: false}
+    });
+    assert.equal(result.ready, false, key);
   }
 });
