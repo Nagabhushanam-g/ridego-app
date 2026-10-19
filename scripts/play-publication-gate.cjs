@@ -27,7 +27,7 @@ function assessPublication({read, evidence = {}}) {
   if (evidence.partnerPackageIdentityApproved !== true) {
     blockers.push('Partner application ID not approved for first Play upload');
   }
-  const applicationIds = source => [...source.matchAll(/\\bapplicationId\\s*=\\s*"([^"]+)"/g)]
+  const applicationIds = source => [...source.matchAll(/\bapplicationId\s*=\s*"([^"]+)"/g)]
     .map(match => match[1]);
   const riderIds = applicationIds(rider);
   const partnerIds = applicationIds(partner);
