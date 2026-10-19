@@ -22,6 +22,13 @@ try {
   if (fs.lstatSync(root).isSymbolicLink() || !fs.statSync(root).isDirectory()) {
     throw Error('Release root must be a real directory');
   }
+  // A malicious extracted bundle must not redirect manifest reads outside root.
+  for (const rel of ['release-candidate', 'release-candidate/provenance.txt',
+    'release-candidate/SHA256SUMS']) {
+    if (fs.lstatSync(path.join(root, rel)).isSymbolicLink()) {
+      throw Error('Symlinked release manifest path: ' + rel);
+    }
+  }
   const provenance = read('release-candidate/provenance.txt');
   const commit = /^source_commit=([a-f0-9]{40})$/m.exec(provenance)?.[1];
   const run = /^workflow_run_id=([1-9][0-9]*)$/m.exec(provenance)?.[1];
@@ -40,13 +47,6 @@ try {
     'driver/build/app/outputs/bundle/release/app-release.aab'
   ]);
   const lines = read('release-candidate/SHA256SUMS').trim().split(/\r?\n/);
-  // A malicious extracted bundle must not redirect manifest reads outside root.
-  for (const rel of ['release-candidate', 'release-candidate/provenance.txt',
-    'release-candidate/SHA256SUMS']) {
-    if (fs.lstatSync(path.join(root, rel)).isSymbolicLink()) {
-      throw Error('Symlinked release manifest path: ' + rel);
-    }
-  }
   const seen = new Set();
   for (const line of lines) {
     const match = /^([a-f0-9]{64})  (.+)$/.exec(line);
