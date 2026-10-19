@@ -104,3 +104,26 @@ test('rejects malformed expected commit', () => {
     assert.equal(spawnSync(process.execPath, [verifier, root, 'abc'], {encoding: 'utf8'}).status, 2);
   } finally { fs.rmSync(root, {recursive: true, force: true}); }
 });
+
+
+test('rejects symlinked provenance manifest even if it contains valid metadata', () => {
+  const root = fixture();
+  try {
+    const manifest = path.join(root, 'release-candidate/provenance.txt');
+    const target = path.join(root, 'original-provenance.txt');
+    fs.renameSync(manifest, target);
+    fs.symlinkSync(target, manifest);
+    assert.equal(verify(root).status, 1);
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
+
+test('rejects symlinked checksum manifest even when hashes match', () => {
+  const root = fixture();
+  try {
+    const manifest = path.join(root, 'release-candidate/SHA256SUMS');
+    const target = path.join(root, 'original-checksums.txt');
+    fs.renameSync(manifest, target);
+    fs.symlinkSync(target, manifest);
+    assert.equal(verify(root).status, 1);
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
