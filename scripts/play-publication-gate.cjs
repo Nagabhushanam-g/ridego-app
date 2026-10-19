@@ -19,6 +19,9 @@ function assessPublication({read, evidence = {}}) {
   if (evidence.playAppAccessVerified !== true) blockers.push('Play reviewer app access instructions unverified');
   if (evidence.playSigningVerified !== true) blockers.push('Play App Signing and artifact certificates unverified');
   if (evidence.playDataSafetyReviewed !== true) blockers.push('Play Data safety disclosures unreviewed');
+  if (evidence.storeListingAssetsApproved !== true) blockers.push('Rider and Partner Play Store listings and assets unapproved');
+  if (evidence.androidPermissionsReviewed !== true) blockers.push('Android permission declarations unreviewed');
+  if (evidence.playInternalTrackAcceptancePassed !== true) blockers.push('Play internal-track installation and login acceptance unverified');
   if (evidence.partnerPackageIdentityApproved !== true &&
       partner.includes('com.example.ridego_driver')) {
     blockers.push('Partner application ID not approved for first Play upload');
