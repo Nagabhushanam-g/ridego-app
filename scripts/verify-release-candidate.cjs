@@ -8,6 +8,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const root = process.argv[2] ? path.resolve(process.argv[2]) : '';
+const expectedCommit = process.argv[3];
+if (expectedCommit !== undefined && !/^[a-f0-9]{40}$/.test(expectedCommit)) {
+  console.error('Expected commit must be a full 40-character lowercase SHA.');
+  process.exit(2);
+}
 if (!root || !fs.existsSync(root)) {
   console.error('Usage: node scripts/verify-release-candidate.cjs <extracted-artifact-root>');
   process.exit(2);
@@ -21,6 +26,9 @@ try {
       (provenance.match(/^source_commit=/gm) || []).length !== 1 ||
       (provenance.match(/^workflow_run_id=/gm) || []).length !== 1) {
     throw Error('Invalid or duplicate source commit / workflow run provenance');
+  }
+  if (expectedCommit && commit !== expectedCommit) {
+    throw Error('Artifact commit does not match requested release candidate');
   }
   const expected = new Set([
     'rider/build/app/outputs/flutter-apk/app-release.apk',
