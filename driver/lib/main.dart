@@ -188,7 +188,6 @@ class _DriverHomeState extends State<DriverHome> {
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
         .where('status', isEqualTo: 'requested')
-        .limit(20)
         .snapshots()
         .listen((snapshot) {
       // Never replace an accepted assignment with another open request.
@@ -210,6 +209,14 @@ class _DriverHomeState extends State<DriverHome> {
         pendingRide = doc.data();
         status = 'New ride request';
       });
+    }, onError: (Object error) {
+      if (!mounted || !online || hasAssignedRide) return;
+      setState(() => status = 'Ride requests unavailable — check connection');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to receive ride requests. Check network or Firestore access.'),
+        ),
+      );
     });
   }
 
