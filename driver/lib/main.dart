@@ -327,7 +327,10 @@ class _DriverHomeState extends State<DriverHome> {
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
         .where('status', isEqualTo: 'requested')
-        .limit(20)
+        // Temporary compatibility fix: the previous 20-document cap could
+        // hide fresh requests behind stale unexpired Firestore records.
+        // Replace with a server-side indexed recent-request query before scale.
+        .limit(200)
         .snapshots()
         .listen((snapshot) {
       if (!mounted || !online) return;
@@ -365,6 +368,14 @@ class _DriverHomeState extends State<DriverHome> {
         rideId = doc.id;
         pendingRide = doc.data();
         status = 'New ride request';
+      });
+    }, onError: (Object error, StackTrace stackTrace) {
+      debugPrint('Ride request listener failed: $error');
+      if (!mounted || !online || hasAssignedRide) return;
+      setState(() {
+        pendingRide = null;
+        rideId = null;
+        status = 'Unable to receive ride requests. Check connection and retry GO ONLINE.';
       });
     });
   }
