@@ -64,6 +64,8 @@ class _DriverHomeState extends State<DriverHome> {
   String? driverUid;
   String? rideId;
   StreamSubscription? rideSubscription;
+  // Ignore queued events from a cancelled request/assignment listener.
+  int rideListenerGeneration = 0;
   Map<String, dynamic>? pendingRide;
   bool noInternet = false;
   bool confirmingCash = false;
@@ -85,6 +87,7 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   void dispose() {
     navigationGeneration++;
+    rideListenerGeneration++;
     connectivitySubscription?.cancel();
     rideSubscription?.cancel();
     super.dispose();
@@ -285,13 +288,14 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void watchAssignedRide(String id) {
+    final listenerGeneration = ++rideListenerGeneration;
     rideSubscription?.cancel();
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
         .doc(id)
         .snapshots()
         .listen((snapshot) {
-      if (!mounted) return;
+      if (!mounted || listenerGeneration != rideListenerGeneration) return;
       final data = snapshot.data();
       if (data == null) return;
       final rideStatus = (data['status'] ?? '').toString();
@@ -323,6 +327,7 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void watchRideRequests() {
+    final listenerGeneration = ++rideListenerGeneration;
     rideSubscription?.cancel();
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
@@ -333,7 +338,7 @@ class _DriverHomeState extends State<DriverHome> {
         .limit(200)
         .snapshots()
         .listen((snapshot) {
-      if (!mounted || !online) return;
+      if (!mounted || !online || listenerGeneration != rideListenerGeneration) return;
       // A Firestore status of "requested" alone does not mean a ride is
       // new. Old requests can survive an app update or a missed expiry job.
       // Never surface cached, undated, assigned, or expired requests.
@@ -371,7 +376,8 @@ class _DriverHomeState extends State<DriverHome> {
       });
     }, onError: (Object error, StackTrace stackTrace) {
       debugPrint('Ride request listener failed: $error');
-      if (!mounted || !online || hasAssignedRide) return;
+      if (!mounted || !online || hasAssignedRide ||
+          listenerGeneration != rideListenerGeneration) return;
       setState(() {
         pendingRide = null;
         rideId = null;
@@ -510,6 +516,7 @@ class _DriverHomeState extends State<DriverHome> {
       }
       if (!mounted) return;
       await (await SharedPreferences.getInstance()).setBool('driver_online_preference', false);
+      rideListenerGeneration++;
       await rideSubscription?.cancel();
       rideSubscription = null;
       setState(() {
