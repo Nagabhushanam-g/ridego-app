@@ -905,7 +905,7 @@ class _RiderHomeState extends State<RiderHome> {
                               if (rideActive && bookedPaymentMethod.isNotEmpty)
                                 Text(
                                   bookedPaymentMethod == 'cash'
-                                      ? 'Payment: Cash • not yet confirmed'
+                                      ? 'Payment: Cash • ${bookedPaymentStatus == 'paid' ? 'confirmed' : 'not yet confirmed'}'
                                       : bookedPaymentMethod == 'upi'
                                           ? 'Payment: UPI • ${bookedPaymentStatus == 'paid' ? 'confirmed' : 'not yet confirmed'}'
                                           : 'Payment: Not specified',
