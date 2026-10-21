@@ -375,9 +375,24 @@ class _DriverHomeState extends State<DriverHome> {
       setState(() {
         pendingRide = null;
         rideId = null;
-        status = 'Unable to receive ride requests. Check connection and retry GO ONLINE.';
+        status = 'Unable to receive ride requests. Tap RETRY REQUESTS.';
       });
     });
+  }
+
+  // Retry the request listener without toggling driver availability offline.
+  // Recover an assigned trip first so a reconnect cannot surface another ride.
+  Future<void> retryRideRequests() async {
+    if (!mounted || !online || noInternet || hasAssignedRide) return;
+    try {
+      await restoreActiveRide();
+      if (!mounted || !online || noInternet || hasAssignedRide) return;
+      watchRideRequests();
+    } catch (error) {
+      debugPrint('Unable to retry ride requests: $error');
+      if (!mounted || !online || hasAssignedRide) return;
+      setState(() => status = 'Unable to receive ride requests. Tap RETRY REQUESTS.');
+    }
   }
 
   Future<void> locate() async {
@@ -1005,6 +1020,18 @@ class _DriverHomeState extends State<DriverHome> {
                           onPressed: noInternet || confirmingCash ? null : confirmCashReceived,
                           icon: const Icon(Icons.payments_outlined),
                           label: Text(confirmingCash ? 'CONFIRMING...' : 'CONFIRM CASH RECEIVED'),
+                        ),
+                      ),
+                    ],
+                    if (online && !hasAssignedRide &&
+                        status.startsWith('Unable to receive ride requests')) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: noInternet ? null : retryRideRequests,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('RETRY REQUESTS'),
                         ),
                       ),
                     ],
