@@ -203,7 +203,21 @@ class _DriverHomeState extends State<DriverHome> {
         });
         return;
       }
-      final doc = snapshot.docs.first;
+      // Firestore does not guarantee newest-first results without ordering.
+      // Select the most recently created request so stale test rides do not
+      // hide fresh bookings from an online partner.
+      final requests = snapshot.docs.toList()
+        ..sort((a, b) {
+          final aTime = a.data()['createdAt'];
+          final bTime = b.data()['createdAt'];
+          if (aTime is Timestamp && bTime is Timestamp) {
+            return bTime.compareTo(aTime);
+          }
+          if (aTime is Timestamp) return -1;
+          if (bTime is Timestamp) return 1;
+          return b.id.compareTo(a.id);
+        });
+      final doc = requests.first;
       setState(() {
         rideId = doc.id;
         pendingRide = doc.data();
