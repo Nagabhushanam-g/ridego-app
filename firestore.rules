@@ -157,6 +157,7 @@ service cloud.firestore {
           && resource.data.driverId == null
           && request.resource.data.status == 'accepted'
           && request.resource.data.driverId == request.auth.uid
+          && resource.data.vehicle == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.vehicleType
           && request.resource.data.driverVehicleNumber is string
           && request.resource.data.driverVehicleNumber == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.vehicleNumber
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'driverId', 'driverVehicleNumber', 'acceptedAt'])
