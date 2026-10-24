@@ -61,6 +61,7 @@ class _RiderHomeState extends State<RiderHome> {
   String destinationAddress = '';
   String pickupAddress = '';
   String vehicle = 'Bike';
+  String driverVehicleNumber = '';
   String status = 'Choose your destination';
   int fare = 0;
   double distanceKm = 0;
@@ -629,6 +630,7 @@ class _RiderHomeState extends State<RiderHome> {
         });
       }
       vehicle = (data['vehicle'] ?? vehicle).toString();
+      driverVehicleNumber = (data['driverVehicleNumber'] ?? '').toString();
       fare = (data['fare'] as num?)?.toInt() ?? fare;
       paymentStatus = (data['paymentStatus'] ?? 'pending').toString();
       paymentRequired = data['paymentRequired'] == true;
@@ -1679,6 +1681,16 @@ class _RiderHomeState extends State<RiderHome> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(friendlyRideStatus),
+                              if (['DRIVER_ACCEPTED', 'DRIVER_ARRIVED', 'TRIP_STARTED'].contains(status))
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    driverVehicleNumber.isEmpty
+                                        ? 'Vehicle registration pending'
+                                        : '$vehicle • $driverVehicleNumber',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
                               if (status == 'DRIVER_ARRIVED' && tripPin != null)
                                 Card(child: ListTile(leading: const Icon(Icons.notifications_active, color: Colors.orange),
                                   title: const Text('Driver arrived!'),
