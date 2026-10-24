@@ -91,6 +91,7 @@ class _DriverHomeState extends State<DriverHome> {
     connectivitySubscription?.cancel();
     rideSubscription?.cancel();
     rideRequestRetryTimer?.cancel();
+    rideRequestExpiryTimer?.cancel();
     super.dispose();
   }
 
@@ -328,9 +329,11 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   Timer? rideRequestRetryTimer;
+  Timer? rideRequestExpiryTimer;
 
   void watchRideRequests() {
     rideRequestRetryTimer?.cancel();
+    rideRequestExpiryTimer?.cancel();
     final listenerGeneration = ++rideListenerGeneration;
     rideSubscription?.cancel();
     rideSubscription = rideGoFirestore
@@ -363,6 +366,7 @@ class _DriverHomeState extends State<DriverHome> {
           return bTime.compareTo(aTime);
         });
       if (eligible.isEmpty) {
+        rideRequestExpiryTimer?.cancel();
         if (hasAssignedRide) return;
         setState(() {
           pendingRide = null;
@@ -373,12 +377,28 @@ class _DriverHomeState extends State<DriverHome> {
       }
       final doc = eligible.first;
       if (hasAssignedRide) return;
+      rideRequestExpiryTimer?.cancel();
+      final expiresAt = (doc.data()['createdAt'] as Timestamp).toDate()
+          .add(const Duration(minutes: 5));
+      final remaining = expiresAt.difference(DateTime.now());
+      rideRequestExpiryTimer = Timer(
+        remaining > Duration.zero ? remaining : Duration.zero,
+        () {
+          if (mounted && online && !hasAssignedRide &&
+              listenerGeneration == rideListenerGeneration && rideId == doc.id) {
+            // Refresh the server query: an expired request must not remain
+            // actionable merely because no Firestore update was received.
+            watchRideRequests();
+          }
+        },
+      );
       setState(() {
         rideId = doc.id;
         pendingRide = doc.data();
         status = 'New ride request';
       });
     }, onError: (Object error, StackTrace stackTrace) {
+      rideRequestExpiryTimer?.cancel();
       debugPrint('Ride request listener failed: $error');
       if (!mounted || !online || hasAssignedRide ||
           listenerGeneration != rideListenerGeneration) return;
