@@ -71,6 +71,7 @@ class _DriverHomeState extends State<DriverHome> {
   bool noInternet = false;
   bool confirmingCash = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
+  StreamSubscription<Position>? livePositionSubscription;
 
   @override
   void initState() {
@@ -90,6 +91,7 @@ class _DriverHomeState extends State<DriverHome> {
     navigationGeneration++;
     rideListenerGeneration++;
     connectivitySubscription?.cancel();
+    livePositionSubscription?.cancel();
     rideSubscription?.cancel();
     rideRequestRetryTimer?.cancel();
     rideRequestExpiryTimer?.cancel();
@@ -460,6 +462,7 @@ class _DriverHomeState extends State<DriverHome> {
         locationReady = true;
         if (!online) status = 'Offline';
       });
+      _startLiveLocationTracking();
       if (hasAssignedRide) {
         _refreshNavigation();
       } else {
@@ -468,6 +471,30 @@ class _DriverHomeState extends State<DriverHome> {
     } catch (_) {
       if (mounted) setState(() => status = 'Unable to get current location');
     }
+  }
+
+  // Keep the map's driver marker current while the app is in the foreground.
+  // Rider-visible tracking requires an authenticated backend location channel.
+  void _startLiveLocationTracking() {
+    livePositionSubscription?.cancel();
+    livePositionSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).listen((position) {
+      if (!mounted) return;
+      final current = LatLng(position.latitude, position.longitude);
+      setState(() {
+        location = current;
+        locationReady = true;
+      });
+      if (hasAssignedRide && map != null) {
+        map!.animateCamera(CameraUpdate.newLatLng(current));
+      }
+    }, onError: (Object error) {
+      debugPrint('Live Partner GPS update failed: $error');
+    });
   }
 
   bool get hasAssignedRide =>
