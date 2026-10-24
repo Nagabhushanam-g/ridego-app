@@ -332,10 +332,10 @@ class _DriverHomeState extends State<DriverHome> {
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
         .where('status', isEqualTo: 'requested')
-        // Temporary compatibility fix: the previous 20-document cap could
-        // hide fresh requests behind stale unexpired Firestore records.
-        // Replace with a server-side indexed recent-request query before scale.
-        .limit(200)
+        // Do not cap requested rides: stale documents can fill a limited
+        // result set and prevent new bookings from reaching online partners.
+        // Filter eligibility and order by createdAt below. For production
+        // scale, replace this with an indexed server-side dispatch queue.
         .snapshots()
         .listen((snapshot) {
       if (!mounted || !online || listenerGeneration != rideListenerGeneration) return;
