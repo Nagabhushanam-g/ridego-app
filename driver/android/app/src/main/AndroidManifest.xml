@@ -2,7 +2,7 @@
     <application
         android:label="RideGo Partner"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/ridego_partner_icon">
 
         <activity
             android:name=".MainActivity"
