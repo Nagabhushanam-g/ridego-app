@@ -1032,7 +1032,7 @@ class _RiderHomeState extends State<RiderHome> {
           if (destinationAddress.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 8),
-              child: Text('Destination: $destinationAddress', maxLines: 2, overflow: TextOverflow.ellipsis),
+              child: Text('Destination: ${readableAddress(destinationAddress)}', maxLines: 2, overflow: TextOverflow.ellipsis),
             ),
           if (searching) const LinearProgressIndicator(),
           if (searchError != null) Text(searchError!),
@@ -1210,6 +1210,7 @@ class _RiderHomeState extends State<RiderHome> {
     rideExpiryCheck?.cancel();
     cashConfirmationTicker?.cancel();
     cashConfirmationTicker = null;
+    cashGraceTicker?.cancel();
     destinationSearchController.clear();
     setState(() {
       rideId = null;
@@ -1263,6 +1264,675 @@ class _RiderHomeState extends State<RiderHome> {
     } finally {
       if (mounted) setState(() => submittingDriverRating = false);
     }
+  }
+
+  String readableAddress(String address) {
+    final parts = address.split(',').map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
+    // Google Plus Codes are useful for navigation but not for a customer-facing address.
+    parts.removeWhere((part) => RegExp(r'^[23456789CFGHJMPQRVWX+]{4,}\\+[23456789CFGHJMPQRVWX+]{2,}(?:\\s.*)? switch (status) {
+    'DRIVER_ACCEPTED' => 'Driver accepted your ride',
+    'DRIVER_ARRIVED' => 'Driver has arrived',
+    'TRIP_STARTED' => 'Trip in progress',
+    'COMPLETED' => 'Trip completed',
+    'SEARCHING_DRIVER' => 'Searching for a driver…',
+    _ => status,
+  };
+
+  Widget _completedTripScreen() => Scaffold(
+    appBar: AppBar(title: const Text('RideGo')),
+    body: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ListView(
+          children: [
+            const SizedBox(height: 16),
+            const Icon(Icons.check_circle, size: 80, color: Colors.green),
+            const SizedBox(height: 20),
+            Text('Trip Completed',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 12),
+            const Text('Your ride has been completed successfully.',
+                textAlign: TextAlign.center),
+            const SizedBox(height: 32),
+            if (destinationAddress.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.location_on_outlined),
+                title: const Text('Destination'),
+                subtitle: Text(readableAddress(destinationAddress)),
+              ),
+            ListTile(
+              leading: const Icon(Icons.directions_car_outlined),
+              title: Text(vehicle),
+              subtitle: Text('${distanceKm.toStringAsFixed(1)} km'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.payments_outlined),
+              title: const Text('Trip fare'),
+              trailing: Text('₹$fare',
+                  style: Theme.of(context).textTheme.titleLarge),
+            ),
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: Text(!paymentRequired ? 'Historical trip — no payment required' : paymentStatus == 'paid' ? 'Payment received' : 'Payment pending'),
+              subtitle: Text(!paymentRequired ? 'This older trip is excluded from cash collection' : paymentStatus == 'paid' && paymentMethod == 'cash'
+                  ? 'Paid by cash to your RideGo Partner'
+                  : 'Please pay your RideGo Partner in cash'),
+              trailing: Icon(paymentStatus == 'paid' ? Icons.check_circle : Icons.schedule,
+                  color: paymentStatus == 'paid' ? Colors.green : Colors.orange),
+            ),
+            const SizedBox(height: 16),
+            Text(savedDriverRating == null ? 'Rate your driver' : 'Your driver rating',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final rating = savedDriverRating ?? selectedDriverRating;
+                return IconButton(
+                  tooltip: '${index + 1} star${index == 0 ? '' : 's'}',
+                  onPressed: savedDriverRating != null || submittingDriverRating
+                      ? null
+                      : () => setState(() => selectedDriverRating = index + 1),
+                  icon: Icon(index < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber, size: 34),
+                );
+              }),
+            ),
+            if (savedDriverRating == null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: FilledButton.tonal(
+                  onPressed: selectedDriverRating == 0 || submittingDriverRating
+                      ? null : _submitDriverRating,
+                  child: Text(submittingDriverRating ? 'SAVING...' : 'SUBMIT RATING'),
+                ),
+              )
+            else
+              const Text('Thank you for your feedback!',
+                  textAlign: TextAlign.center),
+            if (paymentRequired && paymentStatus != 'paid')
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                child: Text(cashConfirmationTimedOut
+                    ? 'You can book another ride. Unconfirmed cash remains pending in trip history.'
+                    : 'You can book another ride in ${cashConfirmationSecondsRemaining} seconds. Unconfirmed cash remains pending in trip history.'),
+              ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: !paymentRequired || paymentStatus == 'paid' || cashConfirmationTimedOut ? _dismissCompletedTrip : null,
+                child: Text(!paymentRequired || paymentStatus == 'paid' || cashConfirmationTimedOut ? 'BACK TO HOME' : 'AWAITING CASH PAYMENT'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    if (rideActive && status == 'COMPLETED') {
+      return _completedTripScreen();
+    }
+    if (!rideActive && !showBookingMap) {
+      return destination == null ? _initialHome() : _preBookingScreen();
+    }
+    return Scaffold(
+        body: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(target: pickup, zoom: 14),
+              myLocationEnabled: locationReady,
+              myLocationButtonEnabled: false,
+              onMapCreated: (controller) {
+                map = controller;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || map != controller) return;
+                  final points = roadRoute.isNotEmpty
+                      ? roadRoute
+                      : destination == null ? <LatLng>[] : <LatLng>[pickup, destination!];
+                  _fitRouteOnMap(points);
+                });
+              },
+              onTap: rideActive
+                  ? null
+                  : (point) => selectingPickup
+                      ? _selectPickup(point)
+                      : selectDestination(point),
+              markers: {
+                Marker(markerId: const MarkerId('pickup'), position: pickup),
+                if (destination != null)
+                  Marker(
+                    markerId: const MarkerId('destination'),
+                    position: destination!,
+                    infoWindow: InfoWindow(
+                      title: 'Destination',
+                      snippet: destinationAddress,
+                    ),
+                  ),
+              },
+              polylines: {
+                if (destination != null)
+                  Polyline(
+                    polylineId: const PolylineId('ride_preview'),
+                    points: roadRoute,
+                    color: const Color(0xFF2563EB),
+                    width: 4,
+                  ),
+              },
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        if (!rideActive) IconButton(
+                          tooltip: 'Back to home',
+                          onPressed: () => setState(() {
+                            showBookingMap = false;
+                            selectingPickup = false;
+                            destination = null;
+                            roadRoute = [];
+                            fare = 0;
+                            distanceKm = 0;
+                            routeGeneration++;
+                            destinationSearchController.clear();
+                            suggestions = [];
+                          }),
+                          icon: const Icon(Icons.arrow_back),
+                        ),
+                        IconButton.filledTonal(
+                          tooltip: 'Ride history',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const RiderHistoryScreen()),
+                          ),
+                          icon: const Icon(Icons.person),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.bold,
+                                fontStyle: FontStyle.italic,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: 'Ride',
+                                  style: TextStyle(color: Color(0xFF102B57)),
+                                ),
+                                TextSpan(
+                                  text: 'Go',
+                                  style: TextStyle(color: Color(0xFF00A85A)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        IconButton.filledTonal(
+                          onPressed: locate,
+                          icon: const Icon(Icons.my_location),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (!rideActive) ...[
+                      Material(
+                        elevation: 3,
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.my_location, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Pickup: ${pickupAddress.isEmpty ? (locationReady ? 'Current location' : 'Choose pickup location') : pickupAddress}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: rideActive ? null : _openPickupSearch,
+                                child: const Text('CHANGE'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (!rideActive)
+                    Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(16),
+                      color: Colors.white,
+                      child: TextField(
+                        controller: destinationSearchController,
+                        textInputAction: TextInputAction.search,
+                        enabled: !rideActive,
+                        onSubmitted: (value) {
+                          destinationSearchDebounce?.cancel();
+                          searchDestinations(value);
+                        },
+                        onChanged: _onDestinationChanged,
+                        decoration: InputDecoration(
+                          hintText: 'Search destination',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: searching || selectingPlace
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : IconButton(
+                                  tooltip: 'Search',
+                                  icon: const Icon(Icons.arrow_forward),
+                                  onPressed: () => searchDestinations(
+                                    destinationSearchController.text,
+                                  ),
+                                ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (suggestions.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        constraints: const BoxConstraints(maxHeight: 260),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: const [
+                            BoxShadow(
+                              blurRadius: 12,
+                              color: Colors.black26,
+                            ),
+                          ],
+                        ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          itemCount: suggestions.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final item = suggestions[index];
+                            return ListTile(
+                              leading: const Icon(Icons.location_on_outlined),
+                              title: Text(item.label),
+                              onTap: () => selectPlace(item),
+                            );
+                          },
+                        ),
+                      ),
+                    if (searchError != null)
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          searchError!,
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (!locationServiceEnabled && !rideActive)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 132,
+                left: 16,
+                right: 16,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_off),
+                        const SizedBox(width: 10),
+                        const Expanded(child: Text('Location is turned off')),
+                        TextButton(
+                          onPressed: Geolocator.openLocationSettings,
+                          child: const Text('TURN ON'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            if (noInternet)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 76,
+                left: 16,
+                right: 16,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.wifi_off),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'No internet connection',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            if (destination != null || rideActive)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (destination != null && !rideActive) ...[
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Choose your ride', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(height: 8),
+                      for (final option in const ['Bike', 'Auto', 'Cab'])
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Material(
+                            color: vehicle == option ? Theme.of(context).colorScheme.primaryContainer : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () {
+                                setState(() => vehicle = option);
+                                recalculateFare();
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Icon(option == 'Bike' ? Icons.two_wheeler : option == 'Auto' ? Icons.electric_rickshaw : Icons.local_taxi),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: Text(option, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                    Text('₹${_fareFor(option, distanceKm)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    const SizedBox(width: 8),
+                                    Icon(vehicle == option ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(friendlyRideStatus),
+                              if (['DRIVER_ACCEPTED', 'DRIVER_ARRIVED', 'TRIP_STARTED'].contains(status))
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    driverVehicleNumber.isEmpty
+                                        ? 'Vehicle registration pending'
+                                        : '$vehicle • $driverVehicleNumber',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              if (status == 'DRIVER_ARRIVED' && tripPin != null)
+                                Card(child: ListTile(leading: const Icon(Icons.notifications_active, color: Colors.orange),
+                                  title: const Text('Driver arrived!'),
+                                  subtitle: SelectableText('Tell your driver PIN: $tripPin'),
+                                )),
+                              if (destinationAddress.isNotEmpty)
+                                Text(
+                                  readableAddress(destinationAddress),
+                                  maxLines: 2,
+                                  softWrap: true,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              if (destination != null && routeLoading)
+                                const Text('Calculating driving route…'),
+                              if (destination != null && routeError != null)
+                                Text(routeError!),
+                              if (destination != null && drivingMinutes != null)
+                                Text('Approx. $drivingMinutes min driving time'),
+                              if (destination != null && distanceKm > 0)
+                                Text(
+                                  '${distanceKm.toStringAsFixed(1)} km estimated distance',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          fare == 0 ? 'Select destination' : '₹$fare',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton(
+                        onPressed: destination == null || rideActive || noInternet || routeLoading || roadRoute.isEmpty || routeError != null ? null : book,
+                        child: Text(rideActive ? 'RIDE IN PROGRESS' : routeLoading ? 'CALCULATING ROUTE…' : routeError != null ? 'ROUTE UNAVAILABLE' : 'BOOK RIDE'),
+                      ),
+                    ),
+                    if (['SEARCHING_DRIVER', 'DRIVER_ACCEPTED', 'DRIVER_ARRIVED'].contains(status)) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: OutlinedButton(
+                          onPressed: noInternet ? null : cancelRide,
+                          child: const Text('CANCEL RIDE'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+  }
+}
+
+class _PickupSearchPage extends StatefulWidget {
+  const _PickupSearchPage();
+
+  @override
+  State<_PickupSearchPage> createState() => _PickupSearchPageState();
+}
+
+class _PickupSearchPageState extends State<_PickupSearchPage> {
+  final controller = TextEditingController();
+  Timer? debounce;
+  int generation = 0;
+  bool loading = false;
+  String? error;
+  List<_PlaceSuggestion> results = [];
+
+  @override
+  void dispose() {
+    debounce?.cancel();
+    controller.dispose();
+    super.dispose();
+  }
+
+  void changed(String value) {
+    debounce?.cancel();
+    ++generation;
+    if (value.trim().length < 2) {
+      setState(() { results = []; error = null; loading = false; });
+      return;
+    }
+    debounce = Timer(const Duration(milliseconds: 350), () => search(value));
+  }
+
+  Future<void> search(String value) async {
+    final query = value.trim();
+    if (query.length < 2) return;
+    final request = ++generation;
+    setState(() { loading = true; error = null; });
+    try {
+      final raw = await riderLocationChannel.invokeMethod<List<dynamic>>(
+        'searchPlaces', {'query': query});
+      if (!mounted || request != generation) return;
+      setState(() {
+        results = (raw ?? []).map((entry) {
+          final data = Map<String, dynamic>.from(entry as Map);
+          final id = data['placeId']?.toString();
+          final label = data['label']?.toString();
+          if (id == null || label == null || label.isEmpty) return null;
+          return _PlaceSuggestion(placeId: id, label: label);
+        }).whereType<_PlaceSuggestion>().toList();
+        loading = false;
+        error = results.isEmpty ? 'No pickup locations found' : null;
+      });
+    } catch (_) {
+      if (mounted && request == generation) {
+        setState(() { loading = false; error = 'Unable to search pickup locations'; });
+      }
+    }
+  }
+
+  Future<void> choose(_PlaceSuggestion item) async {
+    setState(() { loading = true; error = null; });
+    try {
+      final raw = await riderLocationChannel.invokeMethod<Map<dynamic, dynamic>>(
+        'placeDetails', {'placeId': item.placeId});
+      final data = raw == null ? null : Map<String, dynamic>.from(raw);
+      final lat = (data?['latitude'] as num?)?.toDouble();
+      final lng = (data?['longitude'] as num?)?.toDouble();
+      if (lat == null || lng == null) throw const FormatException();
+      if (!mounted) return;
+      Navigator.pop(context, <String, dynamic>{
+        'latitude': lat,
+        'longitude': lng,
+        'address': data?['address']?.toString() ?? item.label,
+      });
+    } catch (_) {
+      if (mounted) setState(() { loading = false; error = 'Unable to select pickup location'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Choose pickup location')),
+    body: SafeArea(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(children: [
+        TextField(
+          controller: controller,
+          autofocus: true,
+          onChanged: changed,
+          onSubmitted: search,
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.search),
+            hintText: 'Search pickup location',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        if (loading) const LinearProgressIndicator(),
+        if (error != null) Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(error!),
+        ),
+        Expanded(child: ListView.builder(
+          itemCount: results.length,
+          itemBuilder: (_, i) => ListTile(
+            leading: const Icon(Icons.place_outlined),
+            title: Text(results[i].label),
+            onTap: loading ? null : () => choose(results[i]),
+          ),
+        )),
+      ]),
+    )),
+  );
+}
+
+class _PlaceSuggestion {
+  const _PlaceSuggestion({
+    required this.placeId,
+    required this.label,
+  });
+
+  final String placeId;
+  final String label;
+}
+, caseSensitive: false).hasMatch(part));
+    return parts.isEmpty ? address : parts.join(', ');
   }
 
   String get friendlyRideStatus => switch (status) {
