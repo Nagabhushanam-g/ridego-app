@@ -111,6 +111,9 @@ class _RiderHomeState extends State<RiderHome> {
   bool paymentRequired = false;
   String? paymentMethod;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? partnerLocationSubscription;
+  LatLng? partnerLiveLocation;
+  DateTime? partnerLocationUpdatedAt;
 
   @override
   void initState() {
@@ -130,6 +133,7 @@ class _RiderHomeState extends State<RiderHome> {
     connectivitySubscription?.cancel();
     locationServiceSubscription?.cancel();
     rideSubscription?.cancel();
+    partnerLocationSubscription?.cancel();
     destinationSearchDebounce?.cancel();
     rideExpiryCheck?.cancel();
     cashConfirmationTicker?.cancel();
@@ -732,8 +736,32 @@ class _RiderHomeState extends State<RiderHome> {
     });
   }
 
+  void _watchPartnerLiveLocation(String id) {
+    partnerLocationSubscription?.cancel();
+    partnerLocationSubscription = rideGoFirestore.collection('rideRequests').doc(id)
+        .collection('liveLocation').doc('driver').snapshots().listen((snapshot) {
+      if (!mounted || rideId != id) return;
+      final data = snapshot.data();
+      final latitude = data?['latitude'];
+      final longitude = data?['longitude'];
+      final updatedAt = data?['updatedAt'];
+      if (latitude is! num || longitude is! num || updatedAt is! Timestamp) return;
+      if (DateTime.now().difference(updatedAt.toDate()) > const Duration(seconds: 45)) {
+        setState(() => partnerLiveLocation = null);
+        return;
+      }
+      setState(() {
+        partnerLiveLocation = LatLng(latitude.toDouble(), longitude.toDouble());
+        partnerLocationUpdatedAt = updatedAt.toDate();
+      });
+    }, onError: (Object error) {
+      debugPrint('Unable to receive Partner GPS updates: $error');
+    });
+  }
+
   void watchRide(String id) {
     rideSubscription?.cancel();
+    partnerLocationSubscription?.cancel();
     scheduleRideExpiryCheck(id);
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
@@ -744,6 +772,13 @@ class _RiderHomeState extends State<RiderHome> {
       if (data == null || !mounted) return;
       final nextStatus = (data['status'] ?? 'requested').toString();
       applyRideData(id, data);
+      if (['accepted', 'arrived', 'started'].contains(nextStatus)) {
+        if (partnerLocationSubscription == null) _watchPartnerLiveLocation(id);
+      } else {
+        partnerLocationSubscription?.cancel();
+        partnerLocationSubscription = null;
+        if (partnerLiveLocation != null) setState(() => partnerLiveLocation = null);
+      }
 
       if (nextStatus == 'completed') {
         rideExpiryCheck?.cancel();
@@ -1207,6 +1242,9 @@ class _RiderHomeState extends State<RiderHome> {
   void _dismissCompletedTrip() {
     rideSubscription?.cancel();
     rideSubscription = null;
+    partnerLocationSubscription?.cancel();
+    partnerLocationSubscription = null;
+    partnerLiveLocation = null;
     rideExpiryCheck?.cancel();
     cashConfirmationTicker?.cancel();
     cashConfirmationTicker = null;
@@ -1408,6 +1446,14 @@ class _RiderHomeState extends State<RiderHome> {
                       : selectDestination(point),
               markers: {
                 Marker(markerId: const MarkerId('pickup'), position: pickup),
+                if (partnerLiveLocation != null &&
+                    ['DRIVER_ACCEPTED', 'DRIVER_ARRIVED', 'TRIP_STARTED'].contains(status) &&
+                    partnerLocationUpdatedAt != null &&
+                    DateTime.now().difference(partnerLocationUpdatedAt!) < const Duration(seconds: 45))
+                  Marker(markerId: const MarkerId('partner_live'),
+                    position: partnerLiveLocation!,
+                    infoWindow: const InfoWindow(title: 'Your RideGo Partner (live)'),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure)),
                 if (destination != null)
                   Marker(
                     markerId: const MarkerId('destination'),
