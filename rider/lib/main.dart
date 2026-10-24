@@ -100,6 +100,13 @@ class _RiderHomeState extends State<RiderHome> {
   bool arrivalBellShown = false;
   bool submittingDriverRating = false;
   String paymentStatus = 'pending';
+  static const cashConfirmationGrace = Duration(minutes: 2);
+  DateTime? completedAt;
+  Timer? cashConfirmationTicker;
+  bool get cashConfirmationTimedOut => completedAt != null &&
+      DateTime.now().difference(completedAt!) >= cashConfirmationGrace;
+  int get cashConfirmationSecondsRemaining => completedAt == null ? 120 :
+      math.max(0, cashConfirmationGrace.inSeconds - DateTime.now().difference(completedAt!).inSeconds);
   bool paymentRequired = false;
   String? paymentMethod;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
@@ -123,6 +130,7 @@ class _RiderHomeState extends State<RiderHome> {
     rideSubscription?.cancel();
     destinationSearchDebounce?.cancel();
     rideExpiryCheck?.cancel();
+    cashConfirmationTicker?.cancel();
     destinationSearchController.dispose();
     pickupSearchController.dispose();
     super.dispose();
@@ -992,11 +1000,15 @@ class _RiderHomeState extends State<RiderHome> {
         children: [
           ListTile(
             leading: const Icon(Icons.my_location),
-            title: Text(shortPickupName, maxLines: 1, overflow: TextOverflow.ellipsis),
+            title: Text(pickupAddress.isEmpty ? 'Locating pickup address…' : pickupAddress,
+                 maxLines: 1, overflow: TextOverflow.ellipsis),
             trailing: const Icon(Icons.chevron_right),
             onTap: _openPickupSearch,
           ),
-          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.only(left: 20, bottom: 8),
+            child: Row(children: [Icon(Icons.south, size: 20), SizedBox(width: 8), Text('Pickup → Destination')]),
+          ),
           TextField(
             controller: destinationSearchController,
             onChanged: _onDestinationChanged,
@@ -1007,6 +1019,11 @@ class _RiderHomeState extends State<RiderHome> {
               border: OutlineInputBorder(),
             ),
           ),
+          if (destinationAddress.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 8),
+              child: Text('Destination: $destinationAddress', maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
           if (searching) const LinearProgressIndicator(),
           if (searchError != null) Text(searchError!),
           for (final item in suggestions.take(5))
@@ -1171,6 +1188,8 @@ class _RiderHomeState extends State<RiderHome> {
     rideSubscription?.cancel();
     rideSubscription = null;
     rideExpiryCheck?.cancel();
+    cashConfirmationTicker?.cancel();
+    cashConfirmationTicker = null;
     destinationSearchController.clear();
     setState(() {
       rideId = null;
@@ -1185,6 +1204,7 @@ class _RiderHomeState extends State<RiderHome> {
       routeGeneration++;
       status = 'Choose your destination';
       paymentStatus = 'pending';
+      completedAt = null;
       paymentRequired = false;
       paymentMethod = null;
       suggestions = [];
@@ -1308,6 +1328,11 @@ class _RiderHomeState extends State<RiderHome> {
             else
               const Text('Thank you for your feedback!',
                   textAlign: TextAlign.center),
+            if (paymentRequired && paymentStatus != 'paid')
+              const Padding(
+                padding: EdgeInsets.only(top: 8, bottom: 8),
+                child: Text('After 2 minutes you can book another ride. Unconfirmed cash remains pending in trip history; it is not marked paid.'),
+              ),
             const SizedBox(height: 16),
             SizedBox(
               height: 52,
