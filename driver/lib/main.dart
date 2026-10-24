@@ -73,6 +73,8 @@ class _DriverHomeState extends State<DriverHome> {
   bool confirmingCash = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
   StreamSubscription<Position>? livePositionSubscription;
+  DateTime? lastSharedPositionAt;
+  bool publishingLivePosition = false;
 
   @override
   void initState() {
@@ -520,9 +522,32 @@ class _DriverHomeState extends State<DriverHome> {
       if (hasAssignedRide && map != null) {
         map!.animateCamera(CameraUpdate.newLatLng(current));
       }
+      _shareLivePosition(current);
     }, onError: (Object error) {
       debugPrint('Live Partner GPS update failed: $error');
     });
+  }
+
+  Future<void> _shareLivePosition(LatLng point) async {
+    final id = rideId;
+    if (!hasAssignedRide || id == null || noInternet || publishingLivePosition) return;
+    final now = DateTime.now();
+    if (lastSharedPositionAt != null &&
+        now.difference(lastSharedPositionAt!) < const Duration(seconds: 5)) return;
+    publishingLivePosition = true;
+    lastSharedPositionAt = now;
+    try {
+      await rideGoFirestore.collection('rideRequests').doc(id)
+          .collection('liveLocation').doc('driver').set({
+        'latitude': point.latitude,
+        'longitude': point.longitude,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      debugPrint('Unable to share live ride location: $error');
+    } finally {
+      publishingLivePosition = false;
+    }
   }
 
   bool get hasAssignedRide =>
@@ -670,6 +695,7 @@ class _DriverHomeState extends State<DriverHome> {
       });
       if (mounted) {
         setState(() => status = 'DRIVER_ACCEPTED');
+        _shareLivePosition(location);
         watchAssignedRide(id);
         _refreshNavigation();
       }
