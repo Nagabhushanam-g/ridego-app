@@ -599,6 +599,14 @@ class _DriverHomeState extends State<DriverHome> {
     final id = rideId;
     if (id == null || driverUid == null) return;
     try {
+      final driverProfile = await rideGoFirestore.collection('profiles').doc(driverUid).get();
+      final registeredVehicleNumber = (driverProfile.data()?['vehicleNumber'] ?? '').toString().trim().toUpperCase();
+      if (registeredVehicleNumber.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Add your vehicle registration number in Partner Profile before accepting rides.')),
+        );
+        return;
+      }
       await rideGoFirestore.runTransaction((transaction) async {
         final ref = rideGoFirestore.collection('rideRequests').doc(id);
         final snapshot = await transaction.get(ref);
@@ -619,6 +627,7 @@ class _DriverHomeState extends State<DriverHome> {
         transaction.update(ref, {
           'status': 'accepted',
           'driverId': driverUid,
+          'driverVehicleNumber': registeredVehicleNumber,
           'acceptedAt': FieldValue.serverTimestamp(),
         });
       });
