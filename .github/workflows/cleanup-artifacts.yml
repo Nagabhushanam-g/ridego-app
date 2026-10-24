@@ -20,6 +20,9 @@ concurrency:
 
 jobs:
   cleanup:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Keep 10 newest artifacts from successful runs
@@ -64,12 +67,8 @@ jobs:
                 if (keep.size === keepCount) break;
               }
             }
-            if (keep.size < keepCount) {
-              core.warning(
-                `Only ${keep.size} successful artifacts exist. Keeping them all; cleanup will not delete any artifacts until 10 successful ones exist.`
-              );
-              return;
-            }
+            // If fewer than ten successful artifacts exist, retain those
+            // and still delete obsolete failed-run artifacts to free space.
 
             let deleted = 0;
             let skipped = 0;
