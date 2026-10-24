@@ -189,6 +189,26 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Per-trip live location. Only the assigned Partner may write it;
+    // only the Rider and assigned Partner may read it.
+    match /rideRequests/{rideId}/liveLocation/{locationId} {
+      allow get: if locationId == 'driver' && signedIn() && (
+        get(/databases/$(database)/documents/rideRequests/$(rideId)).data.riderId == request.auth.uid ||
+        get(/databases/$(database)/documents/rideRequests/$(rideId)).data.driverId == request.auth.uid
+      );
+      allow list: if false;
+      allow create, update: if locationId == 'driver' && signedIn()
+        && get(/databases/$(database)/documents/rideRequests/$(rideId)).data.driverId == request.auth.uid
+        && get(/databases/$(database)/documents/rideRequests/$(rideId)).data.status in ['accepted', 'arrived', 'started']
+        && request.resource.data.keys().hasOnly(['latitude', 'longitude', 'updatedAt'])
+        && request.resource.data.latitude is number
+        && request.resource.data.longitude is number
+        && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
+        && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
     match /paymentReceipts/{rideId} {
       allow get: if signedIn() && (
         resource.data.riderId == request.auth.uid
