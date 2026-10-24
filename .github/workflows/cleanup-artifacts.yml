@@ -1,0 +1,94 @@
+name: Keep Latest 10 Successful Artifacts
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_run:
+    workflows:
+      - Build RideGo Payment Test APKs
+      - Build RideGo APKs and Play Bundles
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ridego-artifact-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep 10 newest artifacts from successful runs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const keepCount = 10;
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              { owner, repo, per_page: 100 }
+            );
+            artifacts.sort((a, b) =>
+              new Date(b.created_at) - new Date(a.created_at) || b.id - a.id
+            );
+
+            const runStatus = new Map();
+            async function getRunStatus(runId) {
+              if (!runId) return null;
+              if (!runStatus.has(runId)) {
+                const { data } = await github.rest.actions.getWorkflowRun({
+                  owner, repo, run_id: runId
+                });
+                runStatus.set(runId, {
+                  status: data.status,
+                  conclusion: data.conclusion
+                });
+              }
+              return runStatus.get(runId);
+            }
+
+            // Select keepers before deleting anything. Only completed,
+            // successful workflow runs qualify for the newest-ten set.
+            const keep = new Set();
+            for (const artifact of artifacts) {
+              if (artifact.expired) continue;
+              const run = await getRunStatus(artifact.workflow_run?.id);
+              if (run?.status === 'completed' && run.conclusion === 'success') {
+                keep.add(artifact.id);
+                if (keep.size === keepCount) break;
+              }
+            }
+            if (keep.size < keepCount) {
+              core.warning(
+                `Only ${keep.size} successful artifacts exist. Keeping them all; cleanup will not delete any artifacts until 10 successful ones exist.`
+              );
+              return;
+            }
+
+            let deleted = 0;
+            let skipped = 0;
+            for (const artifact of artifacts) {
+              if (keep.has(artifact.id) || artifact.expired) continue;
+              const run = await getRunStatus(artifact.workflow_run?.id);
+              // Never remove an artifact from a still-running workflow.
+              if (run?.status !== 'completed') {
+                skipped++;
+                continue;
+              }
+              await github.rest.actions.deleteArtifact({
+                owner, repo, artifact_id: artifact.id
+              });
+              deleted++;
+              core.info(`Deleted older artifact ${artifact.name} (id ${artifact.id})`);
+            }
+            core.summary
+              .addHeading('RideGo artifact storage cleanup')
+              .addRaw(`Kept ${keep.size} newest successful artifacts; deleted ${deleted} older artifacts; skipped ${skipped} unfinished/unknown runs.`)
+              .write();
+            core.info(`Kept ${keep.size}; deleted ${deleted}; skipped ${skipped}.`);
