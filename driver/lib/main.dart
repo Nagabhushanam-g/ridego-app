@@ -90,6 +90,7 @@ class _DriverHomeState extends State<DriverHome> {
     rideListenerGeneration++;
     connectivitySubscription?.cancel();
     rideSubscription?.cancel();
+    rideRequestRetryTimer?.cancel();
     super.dispose();
   }
 
@@ -326,7 +327,10 @@ class _DriverHomeState extends State<DriverHome> {
     });
   }
 
+  Timer? rideRequestRetryTimer;
+
   void watchRideRequests() {
+    rideRequestRetryTimer?.cancel();
     final listenerGeneration = ++rideListenerGeneration;
     rideSubscription?.cancel();
     rideSubscription = rideGoFirestore
@@ -381,7 +385,14 @@ class _DriverHomeState extends State<DriverHome> {
       setState(() {
         pendingRide = null;
         rideId = null;
-        status = 'Unable to receive ride requests. Tap RETRY REQUESTS.';
+        status = 'Unable to receive ride requests. Retrying automatically...';
+      });
+      rideRequestRetryTimer?.cancel();
+      rideRequestRetryTimer = Timer(const Duration(seconds: 15), () {
+        if (mounted && online && !noInternet && !hasAssignedRide &&
+            listenerGeneration == rideListenerGeneration) {
+          retryRideRequests();
+        }
       });
     });
   }
