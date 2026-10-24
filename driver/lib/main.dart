@@ -1114,7 +1114,7 @@ class _DriverHomeState extends State<DriverHome> {
                         ),
                       ),
                     ],
-                    if (rideId != null && hasAssignedRide) ...[
+                    if (rideId != null && hasAssignedRide && status != 'DRIVER_ARRIVED') ...[
                       const SizedBox(height: 6),
                       SizedBox(
                         width: double.infinity,
