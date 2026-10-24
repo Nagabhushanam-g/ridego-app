@@ -113,7 +113,7 @@ jobs:
 
           # Accept the branded icon introduced in the current RideGo build,
           # while retaining compatibility with older default launcher icons.
-          marker = re.search(r'android:icon="@(?:mipmap/ic_launcher|drawable/ridego_rider_icon)"\\s*>', text)
+          marker = re.search(r'android:icon="@(?:mipmap/ic_launcher|drawable/ridego_rider_icon)"\s*>', text)
           if marker is None:
               raise SystemExit("Could not find Android application element in Rider manifest.")
 
@@ -261,7 +261,7 @@ jobs:
 
           # Accept the branded icon introduced in the current RideGo build,
           # while retaining compatibility with older default launcher icons.
-          marker = re.search(r'android:icon="@(?:mipmap/ic_launcher|drawable/ridego_partner_icon)"\\s*>', text)
+          marker = re.search(r'android:icon="@(?:mipmap/ic_launcher|drawable/ridego_partner_icon)"\s*>', text)
           if marker is None:
               raise SystemExit("Could not find Android application element in Driver manifest.")
 
