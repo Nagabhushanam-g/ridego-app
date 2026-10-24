@@ -102,6 +102,7 @@ class _RiderHomeState extends State<RiderHome> {
   String paymentStatus = 'pending';
   static const cashConfirmationGrace = Duration(minutes: 2);
   DateTime? completedAt;
+  Timer? cashGraceTicker;
   Timer? cashConfirmationTicker;
   bool get cashConfirmationTimedOut => completedAt != null &&
       DateTime.now().difference(completedAt!) >= cashConfirmationGrace;
@@ -631,6 +632,8 @@ class _RiderHomeState extends State<RiderHome> {
       rideId = id;
       savedDriverRating = (data['riderRating'] as num?)?.toInt();
       status = riderUiStatus((data['status'] ?? 'requested').toString());
+      completedAt = data['completedAt'] is Timestamp
+          ? (data['completedAt'] as Timestamp).toDate() : null;
       if (data['status'] == 'arrived' && !arrivalBellShown) {
         arrivalBellShown = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -683,6 +686,7 @@ class _RiderHomeState extends State<RiderHome> {
       tripPin = await loadPermanentPin();
       applyRideData(active.id, active.data());
       watchRide(active.id);
+      if (status == 'COMPLETED') _startCashGraceTicker();
     } catch (_) {
       // Startup recovery is best-effort; normal booking remains available.
     }
@@ -1184,6 +1188,16 @@ class _RiderHomeState extends State<RiderHome> {
     return math.max(minimum, (base + km * perKm).ceil());
   }
 
+  void _startCashGraceTicker() {
+    cashGraceTicker?.cancel();
+    cashGraceTicker = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || status != 'COMPLETED' || cashConfirmationTimedOut || paymentStatus == 'paid') {
+        timer.cancel();
+      }
+      if (mounted) setState(() {});
+    });
+  }
+
   void _dismissCompletedTrip() {
     rideSubscription?.cancel();
     rideSubscription = null;
@@ -1329,16 +1343,18 @@ class _RiderHomeState extends State<RiderHome> {
               const Text('Thank you for your feedback!',
                   textAlign: TextAlign.center),
             if (paymentRequired && paymentStatus != 'paid')
-              const Padding(
-                padding: EdgeInsets.only(top: 8, bottom: 8),
-                child: Text('After 2 minutes you can book another ride. Unconfirmed cash remains pending in trip history; it is not marked paid.'),
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                child: Text(cashConfirmationTimedOut
+                    ? 'You can book another ride. Unconfirmed cash remains pending in trip history.'
+                    : 'You can book another ride in ${cashConfirmationSecondsRemaining} seconds. Unconfirmed cash remains pending in trip history.'),
               ),
             const SizedBox(height: 16),
             SizedBox(
               height: 52,
               child: FilledButton(
-                onPressed: !paymentRequired || paymentStatus == 'paid' ? _dismissCompletedTrip : null,
-                child: Text(!paymentRequired || paymentStatus == 'paid' ? 'BACK TO HOME' : 'AWAITING CASH PAYMENT'),
+                onPressed: !paymentRequired || paymentStatus == 'paid' || cashConfirmationTimedOut ? _dismissCompletedTrip : null,
+                child: Text(!paymentRequired || paymentStatus == 'paid' || cashConfirmationTimedOut ? 'BACK TO HOME' : 'AWAITING CASH PAYMENT'),
               ),
             ),
           ],
