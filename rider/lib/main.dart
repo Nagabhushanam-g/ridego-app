@@ -1268,8 +1268,11 @@ class _RiderHomeState extends State<RiderHome> {
 
   String readableAddress(String address) {
     final parts = address.split(',').map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
-    // Google Plus Codes are useful for navigation but not for a customer-facing address.
-    parts.removeWhere((part) => RegExp(r'^[23456789CFGHJMPQRVWX+]{4,}\\+[23456789CFGHJMPQRVWX+]{2,}(?:\\s.*)? switch (status) {
+    parts.removeWhere((part) => RegExp(r'^[23456789CFGHJMPQRVWX]{4,}\\+[23456789CFGHJMPQRVWX]{2,}', caseSensitive: false).hasMatch(part));
+    return parts.isEmpty ? address : parts.join(', ');
+  }
+
+  String get friendlyRideStatus => switch (status) {
     'DRIVER_ACCEPTED' => 'Driver accepted your ride',
     'DRIVER_ARRIVED' => 'Driver has arrived',
     'TRIP_STARTED' => 'Trip in progress',
