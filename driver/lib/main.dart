@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'auth.dart';
 import 'profile.dart';
 import 'partner_profile_overview.dart';
@@ -740,6 +741,39 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
+  // Google Maps provides live GPS tracking, rerouting and spoken guidance.
+  // The embedded route preview is not a turn-by-turn navigation engine.
+  Future<void> startVoiceNavigation() async {
+    final target = navigationTarget ??
+        _ridePoint(status == 'TRIP_STARTED' ? 'destination' : 'pickup');
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Navigation destination is not available yet.')),
+      );
+      return;
+    }
+    final vehicle = (pendingRide?['vehicle'] ?? '').toString().toLowerCase();
+    // Google Maps supports driving mode for motor vehicles, including
+    // bikes, autos and cabs. Do not select two-wheeler mode without
+    // explicit API/platform support.
+    final uri = Uri.https('www.google.com', '/maps/dir/', {
+      'api': '1',
+      'destination': '${target.latitude},${target.longitude}',
+      'travelmode': 'driving',
+      'dir_action': 'navigate',
+    });
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        throw StateError('No compatible navigation app');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Unable to open navigation for ${vehicle.isEmpty ? 'ride' : vehicle}. Install or update Google Maps.'),
+      ));
+    }
+  }
+
   String get friendlyDriverStatus => switch (status) {
     'DRIVER_ACCEPTED' => 'Ride accepted — head to pickup',
     'DRIVER_ARRIVED' => 'Arrived at pickup',
@@ -998,11 +1032,25 @@ class _DriverHomeState extends State<DriverHome> {
                         title: const Text('Destination'),
                         subtitle: Text(
                           (pendingRide!['destinationAddress'] ?? 'Destination unavailable').toString(),
-                          maxLines: 3,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         trailing: Text(
                           '₹${pendingRide!['fare'] ?? 0}',
                           style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                    if (rideId != null && hasAssignedRide) ...[
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: startVoiceNavigation,
+                          icon: const Icon(Icons.navigation_outlined),
+                          label: Text(status == 'TRIP_STARTED'
+                              ? 'NAVIGATE TO DESTINATION'
+                              : 'NAVIGATE TO PICKUP'),
                         ),
                       ),
                     ],
