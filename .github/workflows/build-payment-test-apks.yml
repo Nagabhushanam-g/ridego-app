@@ -111,13 +111,15 @@ jobs:
                   1,
               )
 
-          marker = 'android:icon="@mipmap/ic_launcher">'
-          if marker not in text:
+          # Accept the branded icon introduced in the current RideGo build,
+          # while retaining compatibility with older default launcher icons.
+          marker = re.search(r'android:icon="@(?:mipmap/ic_launcher|drawable/ridego_rider_icon)"\\s*>', text)
+          if marker is None:
               raise SystemExit("Could not find Android application element in Rider manifest.")
 
           text = text.replace(
-              marker,
-              marker + '\n'
+              marker.group(0),
+              marker.group(0) + '\n'
               '        <meta-data\n'
               '            android:name="com.google.android.geo.API_KEY"\n'
               '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
@@ -257,13 +259,15 @@ jobs:
                   1,
               )
 
-          marker = 'android:icon="@mipmap/ic_launcher">'
-          if marker not in text:
+          # Accept the branded icon introduced in the current RideGo build,
+          # while retaining compatibility with older default launcher icons.
+          marker = re.search(r'android:icon="@(?:mipmap/ic_launcher|drawable/ridego_partner_icon)"\\s*>', text)
+          if marker is None:
               raise SystemExit("Could not find Android application element in Driver manifest.")
 
           text = text.replace(
-              marker,
-              marker + '\n'
+              marker.group(0),
+              marker.group(0) + '\n'
               '        <meta-data\n'
               '            android:name="com.google.android.geo.API_KEY"\n'
               '            android:value="' + os.environ["GOOGLE_MAPS_API_KEY"] + '"/>',
