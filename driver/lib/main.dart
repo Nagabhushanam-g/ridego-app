@@ -68,6 +68,7 @@ class _DriverHomeState extends State<DriverHome> {
   // Ignore queued events from a cancelled request/assignment listener.
   int rideListenerGeneration = 0;
   Map<String, dynamic>? pendingRide;
+  String? registeredVehicleType;
   bool noInternet = false;
   bool confirmingCash = false;
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
@@ -81,6 +82,7 @@ class _DriverHomeState extends State<DriverHome> {
       await ensureSignedIn();
       await RideGoNotificationService.initialize(context, role: 'driver');
       await restoreActiveRide();
+      await _loadRegisteredVehicleType();
       await _restoreOnlinePreference();
       await locate();
     });
@@ -129,6 +131,21 @@ class _DriverHomeState extends State<DriverHome> {
       driverUid = credential.user!.uid;
     } else {
       driverUid = FirebaseAuth.instance.currentUser!.uid;
+    }
+  }
+
+  Future<void> _loadRegisteredVehicleType() async {
+    final uid = driverUid;
+    if (uid == null) return;
+    try {
+      final doc = await rideGoFirestore.collection('profiles').doc(uid).get();
+      if (!mounted) return;
+      final type = (doc.data()?['vehicleType'] ?? '').toString().trim();
+      setState(() => registeredVehicleType =
+          ['Bike', 'Auto', 'Cab'].contains(type) ? type : null);
+    } catch (error) {
+      debugPrint('Unable to load registered vehicle category: $error');
+      if (mounted) setState(() => registeredVehicleType = null);
     }
   }
 
@@ -336,12 +353,23 @@ class _DriverHomeState extends State<DriverHome> {
 
   void watchRideRequests() {
     rideRequestRetryTimer?.cancel();
+    if (registeredVehicleType == null) {
+      _loadRegisteredVehicleType().then((_) {
+        if (mounted && online && !hasAssignedRide && registeredVehicleType != null) {
+          watchRideRequests();
+        } else if (mounted && online && registeredVehicleType == null) {
+          setState(() => status = 'Set your Bike, Auto or Cab category in Partner Profile.');
+        }
+      });
+      return;
+    }
     rideRequestExpiryTimer?.cancel();
     final listenerGeneration = ++rideListenerGeneration;
     rideSubscription?.cancel();
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
         .where('status', isEqualTo: 'requested')
+        .where('vehicle', isEqualTo: registeredVehicleType)
         // Do not cap requested rides: stale documents can fill a limited
         // result set and prevent new bookings from reaching online partners.
         // Filter eligibility and order by createdAt below. For production
@@ -601,6 +629,14 @@ class _DriverHomeState extends State<DriverHome> {
     try {
       final driverProfile = await rideGoFirestore.collection('profiles').doc(driverUid).get();
       final registeredVehicleNumber = (driverProfile.data()?['vehicleNumber'] ?? '').toString().trim().toUpperCase();
+      final acceptedVehicleType = (driverProfile.data()?['vehicleType'] ?? '').toString().trim();
+      if (!['Bike', 'Auto', 'Cab'].contains(acceptedVehicleType) ||
+          acceptedVehicleType != (pendingRide?['vehicle'] ?? '').toString()) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This booking does not match your registered vehicle category.')),
+        );
+        return;
+      }
       if (registeredVehicleNumber.isEmpty) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Add your vehicle registration number in Partner Profile before accepting rides.')),
@@ -615,6 +651,7 @@ class _DriverHomeState extends State<DriverHome> {
             data == null ||
             data['status'] != 'requested' ||
             data['driverId'] != null ||
+            data['vehicle'] != acceptedVehicleType ||
             data['createdAt'] is! Timestamp ||
             DateTime.now().difference(
               (data['createdAt'] as Timestamp).toDate(),
