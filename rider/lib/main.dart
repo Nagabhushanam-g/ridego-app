@@ -126,6 +126,7 @@ class _RiderHomeState extends State<RiderHome> {
 
   @override
   void dispose() {
+    cashGraceTicker?.cancel();
     connectivitySubscription?.cancel();
     locationServiceSubscription?.cancel();
     rideSubscription?.cancel();
@@ -746,6 +747,11 @@ class _RiderHomeState extends State<RiderHome> {
 
       if (nextStatus == 'completed') {
         rideExpiryCheck?.cancel();
+        if (paymentRequired && paymentStatus != 'paid' && !cashConfirmationTimedOut) {
+          _startCashGraceTicker();
+        } else {
+          cashGraceTicker?.cancel();
+        }
         return; // Keep the completed trip visible until the rider acknowledges it.
       }
       if (nextStatus == 'cancelled' || nextStatus == 'expired') {
