@@ -544,6 +544,7 @@ class _DriverHomeState extends State<DriverHome> {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (error) {
+      lastSharedPositionAt = null; // Retry the next GPS fix after a failed write.
       debugPrint('Unable to share live ride location: $error');
     } finally {
       publishingLivePosition = false;
@@ -695,6 +696,7 @@ class _DriverHomeState extends State<DriverHome> {
       });
       if (mounted) {
         setState(() => status = 'DRIVER_ACCEPTED');
+        lastSharedPositionAt = null;
         _shareLivePosition(location);
         watchAssignedRide(id);
         _refreshNavigation();
