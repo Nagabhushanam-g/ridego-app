@@ -113,6 +113,8 @@ class _RiderHomeState extends State<RiderHome> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? rideSubscription;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? partnerLocationSubscription;
   LatLng? partnerLiveLocation;
+  Timer? partnerLocationFreshnessTimer;
+  Timer? partnerLocationReconnectTimer;
   DateTime? partnerLocationUpdatedAt;
 
   @override
@@ -134,6 +136,8 @@ class _RiderHomeState extends State<RiderHome> {
     locationServiceSubscription?.cancel();
     rideSubscription?.cancel();
     partnerLocationSubscription?.cancel();
+    partnerLocationFreshnessTimer?.cancel();
+    partnerLocationReconnectTimer?.cancel();
     destinationSearchDebounce?.cancel();
     rideExpiryCheck?.cancel();
     cashConfirmationTicker?.cancel();
@@ -738,6 +742,16 @@ class _RiderHomeState extends State<RiderHome> {
 
   void _watchPartnerLiveLocation(String id) {
     partnerLocationSubscription?.cancel();
+    partnerLocationReconnectTimer?.cancel();
+    partnerLocationFreshnessTimer?.cancel();
+    partnerLocationFreshnessTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || rideId != id) return;
+      if (partnerLocationUpdatedAt != null &&
+          DateTime.now().difference(partnerLocationUpdatedAt!) >= const Duration(seconds: 45) &&
+          partnerLiveLocation != null) {
+        setState(() => partnerLiveLocation = null);
+      }
+    });
     partnerLocationSubscription = rideGoFirestore.collection('rideRequests').doc(id)
         .collection('liveLocation').doc('driver').snapshots().listen((snapshot) {
       if (!mounted || rideId != id) return;
@@ -756,12 +770,27 @@ class _RiderHomeState extends State<RiderHome> {
       });
     }, onError: (Object error) {
       debugPrint('Unable to receive Partner GPS updates: $error');
+      partnerLocationSubscription?.cancel();
+      partnerLocationSubscription = null;
+      if (mounted && rideId == id &&
+          ['DRIVER_ACCEPTED', 'DRIVER_ARRIVED', 'TRIP_STARTED'].contains(status)) {
+        partnerLocationReconnectTimer?.cancel();
+        partnerLocationReconnectTimer = Timer(const Duration(seconds: 10), () {
+          if (mounted && rideId == id &&
+              ['DRIVER_ACCEPTED', 'DRIVER_ARRIVED', 'TRIP_STARTED'].contains(status)) {
+            _watchPartnerLiveLocation(id);
+          }
+        });
+      }
     });
   }
 
   void watchRide(String id) {
     rideSubscription?.cancel();
     partnerLocationSubscription?.cancel();
+    partnerLocationSubscription = null;
+    partnerLocationFreshnessTimer?.cancel();
+    partnerLocationReconnectTimer?.cancel();
     scheduleRideExpiryCheck(id);
     rideSubscription = rideGoFirestore
         .collection('rideRequests')
@@ -777,6 +806,8 @@ class _RiderHomeState extends State<RiderHome> {
       } else {
         partnerLocationSubscription?.cancel();
         partnerLocationSubscription = null;
+        partnerLocationFreshnessTimer?.cancel();
+        partnerLocationReconnectTimer?.cancel();
         if (partnerLiveLocation != null) setState(() => partnerLiveLocation = null);
       }
 
@@ -1244,6 +1275,8 @@ class _RiderHomeState extends State<RiderHome> {
     rideSubscription = null;
     partnerLocationSubscription?.cancel();
     partnerLocationSubscription = null;
+    partnerLocationFreshnessTimer?.cancel();
+    partnerLocationReconnectTimer?.cancel();
     partnerLiveLocation = null;
     rideExpiryCheck?.cancel();
     cashConfirmationTicker?.cancel();
