@@ -678,16 +678,32 @@ class _RiderHomeState extends State<RiderHome> {
           .where('riderId', isEqualTo: uid)
           .get();
 
+      // Restore an unfinished ride, or a recently completed cash ride only
+      // while its confirmation grace period is still running. Older unpaid
+      // rides remain in history and must not block the next booking.
       QueryDocumentSnapshot<Map<String, dynamic>>? active;
+      DateTime? newestTime;
       for (final doc in snapshot.docs) {
-        final rideStatus = (doc.data()['status'] ?? '').toString();
-        if (rideStatus == 'requested' ||
-            rideStatus == 'accepted' ||
-            rideStatus == 'arrived' ||
-            rideStatus == 'started' ||
-            (rideStatus == 'completed' && doc.data()['paymentRequired'] == true && doc.data()['paymentStatus'] != 'paid')) {
+        final data = doc.data();
+        final rideStatus = (data['status'] ?? '').toString();
+        final completed = data['completedAt'];
+        final recentUnpaidCompletion = rideStatus == 'completed' &&
+            data['paymentRequired'] == true &&
+            data['paymentStatus'] != 'paid' &&
+            completed is Timestamp &&
+            DateTime.now().difference(completed.toDate()) < cashConfirmationGrace;
+        if (rideStatus != 'requested' &&
+            rideStatus != 'accepted' &&
+            rideStatus != 'arrived' &&
+            rideStatus != 'started' &&
+            !recentUnpaidCompletion) continue;
+        final timestamp = data['createdAt'];
+        final created = timestamp is Timestamp
+            ? timestamp.toDate()
+            : DateTime.fromMillisecondsSinceEpoch(0);
+        if (active == null || newestTime == null || created.isAfter(newestTime)) {
           active = doc;
-          break;
+          newestTime = created;
         }
       }
 
