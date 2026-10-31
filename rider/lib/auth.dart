@@ -17,6 +17,11 @@ class RiderAuthGate extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
+        // Only verified phone or legacy email accounts may pass this gate.
+        // Anonymous sessions from older builds must sign in again.
+        if (snapshot.data?.isAnonymous == true) {
+          return const RiderAuthScreen();
+        }
         if (snapshot.data != null) return RiderProfileGate(home: home);
         return const RiderAuthScreen();
       },
