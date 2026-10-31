@@ -613,8 +613,9 @@ class _RiderHomeState extends State<RiderHome> {
       riderUid = FirebaseAuth.instance.currentUser!.uid;
       return;
     }
-    final credential = await FirebaseAuth.instance.signInAnonymously();
-    riderUid = credential.user!.uid;
+    // Authentication is handled by RiderAuthGate; never silently create
+    // an anonymous account that could separate rides from the verified user.
+    throw StateError('Sign in with your verified RideGo account first.');
   }
 
   String riderUiStatus(String firestoreStatus) => switch (firestoreStatus) {
