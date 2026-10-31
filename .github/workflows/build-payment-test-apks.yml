@@ -70,7 +70,10 @@ jobs:
                      for entry in config.get("client", [])]
           if expected not in clients:
               raise SystemExit("Firebase Android package mismatch for rider; check the repository secret.")
-          print("Firebase Android package verified for rider (package name only).")
+          project = config.get("project_info", {})
+          if project.get("project_id") != "ridego-af7c3" or str(project.get("project_number")) != "7718021506":
+              raise SystemExit("Firebase project mismatch for rider: expected RideGo ridego-af7c3 (7718021506). Update the GitHub Firebase JSON secret.")
+          print("Firebase project and Android package verified for rider: ridego-af7c3.")
           PY
 
           printf '%s' "$RIDER_KEYSTORE_BASE64" | base64 --decode > android/app/rider-release.jks
@@ -218,7 +221,10 @@ jobs:
                      for entry in config.get("client", [])]
           if expected not in clients:
               raise SystemExit("Firebase Android package mismatch for driver; check the repository secret.")
-          print("Firebase Android package verified for driver (package name only).")
+          project = config.get("project_info", {})
+          if project.get("project_id") != "ridego-af7c3" or str(project.get("project_number")) != "7718021506":
+              raise SystemExit("Firebase project mismatch for driver: expected RideGo ridego-af7c3 (7718021506). Update the GitHub Firebase JSON secret.")
+          print("Firebase project and Android package verified for driver: ridego-af7c3.")
           PY
 
           printf '%s' "$DRIVER_KEYSTORE_BASE64" | base64 --decode > android/app/driver-release.jks
