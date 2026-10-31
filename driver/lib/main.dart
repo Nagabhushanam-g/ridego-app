@@ -129,8 +129,9 @@ class _DriverHomeState extends State<DriverHome> {
 
   Future<void> ensureSignedIn() async {
     if (FirebaseAuth.instance.currentUser == null) {
-      final credential = await FirebaseAuth.instance.signInAnonymously();
-      driverUid = credential.user!.uid;
+      // DriverAuthGate owns authentication. Do not silently create
+      // anonymous partner accounts with separate documents and ride history.
+      throw StateError('Sign in with your verified RideGo account first.');
     } else {
       driverUid = FirebaseAuth.instance.currentUser!.uid;
     }
