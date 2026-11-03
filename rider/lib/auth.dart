@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'profile.dart';
@@ -45,10 +46,48 @@ class _RiderAuthScreenState extends State<RiderAuthScreen> {
   int? resendToken;
   bool busy = false;
   bool useEmail = false;
+  Timer? _cooldownTimer;
+  int _resendSeconds = 0;
+  bool _firebaseBlocked = false;
+
+  void _startCooldown(int seconds) {
+    _cooldownTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _resendSeconds = seconds);
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _resendSeconds <= 1) {
+        timer.cancel();
+        if (mounted) setState(() => _resendSeconds = 0);
+      } else {
+        setState(() => _resendSeconds--);
+      }
+    });
+  }
+
+  void _handlePhoneError(FirebaseAuthException e) {
+    if (!mounted) return;
+    final blocked = e.code == 'too-many-requests' ||
+        e.code == 'quota-exceeded' ||
+        (e.message ?? '').toLowerCase().contains('unusual activity');
+    setState(() {
+      busy = false;
+      _firebaseBlocked = blocked;
+      error = blocked
+          ? 'Firebase has temporarily blocked SMS requests. Stop retrying and use your existing email sign-in until Firebase allows requests again.'
+          : e.code == 'operation-not-allowed'
+              ? 'Phone authentication is unavailable. Check Firebase Phone sign-in and SMS region settings.'
+              : e.code == 'invalid-phone-number'
+                  ? 'Enter a valid mobile number.'
+                  : e.message ?? 'Unable to send OTP (${e.code}).';
+    });
+    if (blocked) _startCooldown(3600);
+  }
+
   String? error;
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     phone.dispose();
     otp.dispose();
     email.dispose();
@@ -59,6 +98,7 @@ class _RiderAuthScreenState extends State<RiderAuthScreen> {
   String get number => '+91${phone.text.trim()}';
 
   Future<void> sendCode({bool resend = false}) async {
+    if (_resendSeconds > 0 || _firebaseBlocked) return;
     if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(phone.text.trim())) {
       setState(() => error = 'Enter a valid 10-digit Indian mobile number.');
       return;
@@ -72,25 +112,28 @@ class _RiderAuthScreenState extends State<RiderAuthScreen> {
           try {
             await FirebaseAuth.instance.signInWithCredential(credential);
           } on FirebaseAuthException catch (e) {
-            if (mounted) setState(() => error = e.message ?? e.code);
+            _handlePhoneError(e);
           }
         },
-        verificationFailed: (e) {
-          if (mounted) setState(() { busy = false; error = e.message ?? e.code; });
-        },
+        verificationFailed: _handlePhoneError,
         codeSent: (id, token) {
           if (mounted) setState(() {
             verificationId = id;
             resendToken = token;
             busy = false;
           });
+          _startCooldown(60);
         },
         codeAutoRetrievalTimeout: (id) {
           if (mounted) setState(() { verificationId = id; busy = false; });
         },
       );
     } catch (e) {
-      if (mounted) setState(() { busy = false; error = 'Could not send OTP: $e'; });
+      if (e is FirebaseAuthException) {
+        _handlePhoneError(e);
+      } else if (mounted) {
+        setState(() { busy = false; error = 'Could not send OTP. Check your connection and try later.'; });
+      }
     }
   }
 
@@ -152,8 +195,10 @@ class _RiderAuthScreenState extends State<RiderAuthScreen> {
                 maxLength: 6,
                 decoration: const InputDecoration(
                   labelText: '6-digit SMS OTP', border: OutlineInputBorder())),
-              TextButton(onPressed: busy ? null : () => sendCode(resend: true),
-                child: const Text('Resend OTP')),
+              TextButton(onPressed: busy || _resendSeconds > 0 || _firebaseBlocked
+                  ? null : () => sendCode(resend: true),
+                child: Text(_resendSeconds > 0
+                    ? 'Resend OTP in ${_resendSeconds}s' : 'Resend OTP')),
               TextButton(onPressed: busy ? null : () => setState(() {
                 verificationId = null; otp.clear(); error = null;
               }), child: const Text('Change mobile number')),
@@ -175,7 +220,9 @@ class _RiderAuthScreenState extends State<RiderAuthScreen> {
           SizedBox(width: double.infinity, height: 48,
             child: FilledButton(
               onPressed: busy ? null : useEmail ? emailSignIn :
-                verificationId == null ? sendCode : verifyCode,
+                verificationId == null
+                    ? (_resendSeconds > 0 || _firebaseBlocked ? null : sendCode)
+                    : verifyCode,
               child: busy ? const CircularProgressIndicator() :
                 Text(useEmail ? 'SIGN IN WITH EMAIL' :
                   verificationId == null ? 'SEND OTP' : 'VERIFY & CONTINUE'),
