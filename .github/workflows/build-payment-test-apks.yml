@@ -1,4 +1,6 @@
 name: Build RideGo Payment Test APKs
+# Rebuild after refreshing Rider and Partner Firebase Android configuration secrets.
+# Both apps must resolve to the RideGo Firebase project before APK upload.
 
 on:
   workflow_dispatch:
