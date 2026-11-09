@@ -10,7 +10,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'auth.dart';
 import 'profile.dart';
 import 'partner_profile_overview.dart';
@@ -60,6 +59,8 @@ class _DriverHomeState extends State<DriverHome> {
   int navigationGeneration = 0;
   String? navigationRideId;
   String? navigationPhase;
+  LatLng? lastRouteOrigin;
+  DateTime? lastRouteRequestAt;
   bool online = false;
   String status = 'Offline';
   String? driverUid;
@@ -273,19 +274,21 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
-  void _refreshNavigation() {
+  void _refreshNavigation({bool force = false}) {
     if (!hasAssignedRide || !locationReady) return;
     final phase = status == 'TRIP_STARTED' ? 'destination' : 'pickup';
     final target = _ridePoint(phase);
     final id = rideId;
     if (target == null || id == null) return;
-    if (navigationRideId == id && navigationPhase == phase) return;
+    if (!force && navigationRideId == id && navigationPhase == phase) return;
+    lastRouteRequestAt = DateTime.now();
+    lastRouteOrigin = location;
     navigationRideId = id;
     navigationPhase = phase;
     final generation = ++navigationGeneration;
     setState(() {
       navigationTarget = target;
-      navigationRoute = [];
+      if (!force) navigationRoute = [];
     });
     FirebaseFunctions.instance.httpsCallable('computeRideRoute').call({
       'origin': {'latitude': location.latitude, 'longitude': location.longitude},
@@ -308,6 +311,8 @@ class _DriverHomeState extends State<DriverHome> {
     navigationGeneration++;
     navigationRideId = null;
     navigationPhase = null;
+    lastRouteOrigin = null;
+    lastRouteRequestAt = null;
     navigationTarget = null;
     navigationRoute = [];
   }
@@ -524,6 +529,16 @@ class _DriverHomeState extends State<DriverHome> {
         map!.animateCamera(CameraUpdate.newLatLng(current));
       }
       _shareLivePosition(current);
+      // Refresh the embedded route when the Partner has moved materially.
+      // Throttle routing calls to avoid excessive Maps API usage.
+      if (hasAssignedRide && navigationTarget != null &&
+          (lastRouteRequestAt == null ||
+           DateTime.now().difference(lastRouteRequestAt!) >= const Duration(seconds: 45)) &&
+          (lastRouteOrigin == null ||
+           Geolocator.distanceBetween(lastRouteOrigin!.latitude, lastRouteOrigin!.longitude,
+             current.latitude, current.longitude) >= 100)) {
+        _refreshNavigation(force: true);
+      }
     }, onError: (Object error) {
       debugPrint('Live Partner GPS update failed: $error');
     });
@@ -843,38 +858,9 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
-  // Google Maps provides live GPS tracking, rerouting and spoken guidance.
-  // The embedded route preview is not a turn-by-turn navigation engine.
-  Future<void> startVoiceNavigation() async {
-    final target = navigationTarget ??
-        _ridePoint(status == 'TRIP_STARTED' ? 'destination' : 'pickup');
-    if (target == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Navigation destination is not available yet.')),
-      );
-      return;
-    }
-    final vehicle = (pendingRide?['vehicle'] ?? '').toString().toLowerCase();
-    // Google Maps supports driving mode for motor vehicles, including
-    // bikes, autos and cabs. Do not select two-wheeler mode without
-    // explicit API/platform support.
-    final uri = Uri.https('www.google.com', '/maps/dir/', {
-      'api': '1',
-      'destination': '${target.latitude},${target.longitude}',
-      'travelmode': 'driving',
-      'dir_action': 'navigate',
-    });
-    try {
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        throw StateError('No compatible navigation app');
-      }
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Unable to open navigation for ${vehicle.isEmpty ? 'ride' : vehicle}. Install or update Google Maps.'),
-      ));
-    }
-  }
+  // Route guidance stays inside RideGo Partner's embedded Google Map.
+  // Full turn-by-turn voice instructions require a dedicated navigation SDK;
+  // this map displays the route and live GPS position without switching apps.
 
   String get friendlyDriverStatus => switch (status) {
     'DRIVER_ACCEPTED' => 'Ride accepted — head to pickup',
@@ -1140,19 +1126,6 @@ class _DriverHomeState extends State<DriverHome> {
                         trailing: Text(
                           '₹${pendingRide!['fare'] ?? 0}',
                           style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                    if (rideId != null && hasAssignedRide && status != 'DRIVER_ARRIVED') ...[
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: startVoiceNavigation,
-                          icon: const Icon(Icons.navigation_outlined),
-                          label: Text(status == 'TRIP_STARTED'
-                              ? 'NAVIGATE TO DESTINATION'
-                              : 'NAVIGATE TO PICKUP'),
                         ),
                       ),
                     ],
