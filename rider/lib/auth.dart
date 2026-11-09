@@ -57,7 +57,12 @@ class _RiderAuthScreenState extends State<RiderAuthScreen> {
     _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || _resendSeconds <= 1) {
         timer.cancel();
-        if (mounted) setState(() => _resendSeconds = 0);
+        if (mounted) setState(() {
+          _resendSeconds = 0;
+          // Local cooldown has ended; Firebase may still reject another
+          // attempt, which is handled by verificationFailed.
+          _firebaseBlocked = false;
+        });
       } else {
         setState(() => _resendSeconds--);
       }
