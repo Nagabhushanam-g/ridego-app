@@ -55,6 +55,8 @@ class _DriverHomeState extends State<DriverHome> {
   GoogleMapController? map;
   LatLng location = const LatLng(17.3850, 78.4867);
   bool locationReady = false;
+  Position? latestGpsFix;
+  static const double arrivalEnableRadiusMeters = 100;
   List<LatLng> navigationRoute = [];
   LatLng? navigationTarget;
   int navigationGeneration = 0;
@@ -547,6 +549,7 @@ class _DriverHomeState extends State<DriverHome> {
       if (!mounted) return;
       final current = LatLng(position.latitude, position.longitude);
       setState(() {
+        latestGpsFix = position;
         location = current;
         locationReady = true;
       });
@@ -798,6 +801,21 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
+  double? get pickupDistanceMeters {
+    final pickup = _ridePoint('pickup');
+    final fix = latestGpsFix;
+    if (pickup == null || fix == null ||
+        DateTime.now().difference(fix.timestamp).abs() > const Duration(seconds: 30) ||
+        fix.accuracy > 100) return null;
+    return Geolocator.distanceBetween(
+      fix.latitude, fix.longitude, pickup.latitude, pickup.longitude);
+  }
+
+  bool get canMarkDriverArrived =>
+      status == 'DRIVER_ACCEPTED' &&
+      pickupDistanceMeters != null &&
+      pickupDistanceMeters! <= arrivalEnableRadiusMeters;
+
   Future<void> next() async {
     if (noInternet) {
       if (mounted) {
@@ -809,6 +827,28 @@ class _DriverHomeState extends State<DriverHome> {
     }
     final id = rideId;
     if (id == null) return;
+    if (status == 'DRIVER_ACCEPTED') {
+      // Recheck with a fresh GPS fix, not just the last displayed map marker.
+      try {
+        final fix = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 12)),
+        );
+        final pickup = _ridePoint('pickup');
+        if (pickup == null || fix.accuracy > 100 ||
+            Geolocator.distanceBetween(fix.latitude, fix.longitude,
+              pickup.latitude, pickup.longitude) > arrivalEnableRadiusMeters) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Driver Arrived is available within 100 m of pickup with accurate GPS.')));
+          return;
+        }
+        if (mounted) setState(() => latestGpsFix = fix);
+      } catch (_) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Waiting for an accurate GPS location. Try again near pickup.')));
+        return;
+      }
+    }
     if (status == 'DRIVER_ARRIVED') {
       try {
         final proof = await rideGoFirestore.collection('rideRequests').doc(id).collection('pinVerification').doc('verified').get();
@@ -1195,10 +1235,15 @@ class _DriverHomeState extends State<DriverHome> {
                         width: double.infinity,
                         height: 50,
                         child: FilledButton(
-                          onPressed: noInternet ? null : (status == 'DRIVER_ARRIVED' ? verifyStartPin : next),
+                          onPressed: noInternet || (status == 'DRIVER_ACCEPTED' && !canMarkDriverArrived)
+                              ? null : (status == 'DRIVER_ARRIVED' ? verifyStartPin : next),
                           child: Text(
                             status == 'DRIVER_ACCEPTED'
-                                ? 'DRIVER ARRIVED'
+                                ? (pickupDistanceMeters == null
+                                    ? 'WAITING FOR PICKUP GPS'
+                                    : canMarkDriverArrived
+                                        ? 'DRIVER ARRIVED'
+                                        : 'DRIVER ARRIVED • ${pickupDistanceMeters!.round()} m away')
                                 : status == 'DRIVER_ARRIVED'
                                     ? 'START TRIP'
                                     : 'COMPLETE TRIP',
