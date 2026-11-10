@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -301,7 +302,9 @@ class _DriverHomeState extends State<DriverHome> {
       final points = _decodeNavigationPolyline(encoded);
       if (points.length < 2) return;
       setState(() => navigationRoute = points);
-      await _frameNavigation(points);
+      // Fit the route once when a new leg begins. During live reroutes,
+      // preserve the GPS-following navigation camera.
+      if (!force) await _frameNavigation(points);
     }).catchError((Object _) {
       // Keep pickup/destination markers visible if routing is unavailable.
     });
@@ -511,6 +514,28 @@ class _DriverHomeState extends State<DriverHome> {
 
   // Keep the map's driver marker current while the app is in the foreground.
   // Rider-visible tracking requires an authenticated backend location channel.
+  // Approximate nearest distance to a road-polyline segment in metres.
+  // Used only for reroute detection, not for billing or trip distance.
+  double _distanceFromRouteMeters(LatLng point, List<LatLng> route) {
+    final scale = math.cos(point.latitude * math.pi / 180);
+    double closest = double.infinity;
+    for (var i = 1; i < route.length; i++) {
+      final a = route[i - 1], b = route[i];
+      final ax = (a.longitude - point.longitude) * 111320 * scale;
+      final ay = (a.latitude - point.latitude) * 111320;
+      final bx = (b.longitude - point.longitude) * 111320 * scale;
+      final by = (b.latitude - point.latitude) * 111320;
+      final dx = bx - ax, dy = by - ay;
+      final lengthSquared = dx * dx + dy * dy;
+      final t = lengthSquared < 1
+          ? 0.0
+          : ((-ax * dx - ay * dy) / lengthSquared).clamp(0.0, 1.0);
+      final x = ax + t * dx, y = ay + t * dy;
+      closest = math.min(closest, math.sqrt(x * x + y * y));
+    }
+    return closest;
+  }
+
   void _startLiveLocationTracking() {
     livePositionSubscription?.cancel();
     livePositionSubscription = Geolocator.getPositionStream(
@@ -536,15 +561,17 @@ class _DriverHomeState extends State<DriverHome> {
         ));
       }
       _shareLivePosition(current);
-      // Refresh the embedded route when the Partner has moved materially.
-      // Throttle routing calls to avoid excessive Maps API usage.
+      // Recalculate when the vehicle strays off the displayed route.
+      // Also refresh periodically as it advances; throttle API requests.
       if (hasAssignedRide && navigationTarget != null &&
           (lastRouteRequestAt == null ||
-           DateTime.now().difference(lastRouteRequestAt!) >= const Duration(seconds: 45)) &&
-          (lastRouteOrigin == null ||
-           Geolocator.distanceBetween(lastRouteOrigin!.latitude, lastRouteOrigin!.longitude,
-             current.latitude, current.longitude) >= 100)) {
-        _refreshNavigation(force: true);
+           DateTime.now().difference(lastRouteRequestAt!) >= const Duration(seconds: 45))) {
+        final moved = lastRouteOrigin == null ||
+            Geolocator.distanceBetween(lastRouteOrigin!.latitude,
+                lastRouteOrigin!.longitude, current.latitude, current.longitude) >= 150;
+        final offRoute = navigationRoute.length > 1 &&
+            _distanceFromRouteMeters(current, navigationRoute) > 65;
+        if (moved || offRoute) _refreshNavigation(force: true);
       }
     }, onError: (Object error) {
       debugPrint('Live Partner GPS update failed: $error');
