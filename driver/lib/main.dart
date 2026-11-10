@@ -79,6 +79,8 @@ class _DriverHomeState extends State<DriverHome> {
   StreamSubscription<Position>? livePositionSubscription;
   DateTime? lastSharedPositionAt;
   bool publishingLivePosition = false;
+  String? readinessAlertRideId;
+  bool readinessAlertSending = false;
 
   @override
   void initState() {
@@ -538,6 +540,28 @@ class _DriverHomeState extends State<DriverHome> {
     return closest;
   }
 
+  Future<void> _notifyRiderApproachingPickup() async {
+    final id = rideId;
+    if (id == null || readinessAlertRideId == id || readinessAlertSending ||
+        status != 'DRIVER_ACCEPTED' || noInternet || !canMarkDriverArrived) return;
+    readinessAlertSending = true;
+    try {
+      final ref = rideGoFirestore.collection('rideRequests').doc(id);
+      await rideGoFirestore.runTransaction((transaction) async {
+        final snap = await transaction.get(ref);
+        final data = snap.data();
+        if (data == null || data['driverId'] != driverUid ||
+            data['status'] != 'accepted' || data['pickupReadyAlertAt'] != null) return;
+        transaction.update(ref, {'pickupReadyAlertAt': FieldValue.serverTimestamp()});
+      });
+      readinessAlertRideId = id;
+    } catch (error) {
+      debugPrint('Unable to notify rider of approaching Partner: $error');
+    } finally {
+      readinessAlertSending = false;
+    }
+  }
+
   void _startLiveLocationTracking() {
     livePositionSubscription?.cancel();
     livePositionSubscription = Geolocator.getPositionStream(
@@ -564,6 +588,7 @@ class _DriverHomeState extends State<DriverHome> {
         ));
       }
       _shareLivePosition(current);
+      _notifyRiderApproachingPickup();
       // Recalculate when the vehicle strays off the displayed route.
       // Also refresh periodically as it advances; throttle API requests.
       if (hasAssignedRide && navigationTarget != null &&
