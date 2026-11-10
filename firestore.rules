@@ -166,6 +166,16 @@ service cloud.firestore {
         (
           isDriver()
           && resource.data.driverId == request.auth.uid
+          && resource.data.status == 'accepted'
+          && request.resource.data.status == 'accepted'
+          && !('pickupReadyAlertAt' in resource.data)
+          && request.resource.data.pickupReadyAlertAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pickupReadyAlertAt'])
+        )
+        ||
+        (
+          isDriver()
+          && resource.data.driverId == request.auth.uid
           && (
             (resource.data.status == 'accepted' && request.resource.data.status == 'arrived')
             || (resource.data.status == 'arrived' && request.resource.data.status == 'started'
