@@ -98,6 +98,7 @@ class _RiderHomeState extends State<RiderHome> {
   int? savedDriverRating;
   String? tripPin;
   bool arrivalBellShown = false;
+  String? readinessAlertShownRideId;
   bool submittingDriverRating = false;
   String paymentStatus = 'pending';
   static const cashConfirmationGrace = Duration(minutes: 2);
@@ -644,6 +645,19 @@ class _RiderHomeState extends State<RiderHome> {
       status = riderUiStatus((data['status'] ?? 'requested').toString());
       completedAt = data['completedAt'] is Timestamp
           ? (data['completedAt'] as Timestamp).toDate() : null;
+      if (data['pickupReadyAlertAt'] != null &&
+          readinessAlertShownRideId != id &&
+          data['status'] == 'accepted') {
+        readinessAlertShownRideId = id;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && rideId == id) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              duration: Duration(seconds: 8),
+              content: Text('🔔 Your RideGo Partner is within 100 m of pickup. Please be ready!'),
+            ));
+          }
+        });
+      }
       if (data['status'] == 'arrived' && !arrivalBellShown) {
         arrivalBellShown = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
