@@ -526,7 +526,14 @@ class _DriverHomeState extends State<DriverHome> {
         locationReady = true;
       });
       if (hasAssignedRide && map != null) {
-        map!.animateCamera(CameraUpdate.newLatLng(current));
+        // Keep the vehicle visible ahead of the bottom trip controls and
+        // rotate the embedded map with the actual GPS travel heading.
+        final heading = position.heading.isFinite && position.speed > 1.5
+            ? position.heading
+            : 0.0;
+        map!.animateCamera(CameraUpdate.newCameraPosition(
+          CameraPosition(target: current, zoom: 17, tilt: 35, bearing: heading),
+        ));
       }
       _shareLivePosition(current);
       // Refresh the embedded route when the Partner has moved materially.
